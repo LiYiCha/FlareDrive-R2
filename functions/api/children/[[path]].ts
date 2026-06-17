@@ -6,16 +6,12 @@ export async function onRequestGet(context) {
     const [bucket, path] = parseBucketPath(context);
     const prefix = path && `${path}/`;
     if (!bucket || prefix.startsWith("_$flaredrive$/")) return notFound();
-    const allowList = get_allow_list(context);
+    const allowList = await get_allow_list(context);
     if (!allowList) {
-      const headers = new Headers();
-      headers.set("WWW-Authenticate", 'Basic realm="需要登录"');
-      return new Response("没有读取权限", { status: 401, headers });
+      return new Response("没有读取权限", { status: 401 });
     }
-    if (prefix && !can_access_path(context, prefix)) {
-      const headers = new Headers();
-      headers.set("WWW-Authenticate", 'Basic realm="需要登录"');
-      return new Response("没有读取权限", { status: 401, headers });
+    if (prefix && !await can_access_path(context, prefix)) {
+      return new Response("没有读取权限", { status: 401 });
     }
 
     const objList = await bucket.list({
@@ -26,8 +22,10 @@ export async function onRequestGet(context) {
     let objKeys = objList.objects
       .filter((obj) => !obj.key.endsWith("/_$folder$"))
       .map((obj) => {
-        const { key, size, uploaded, httpMetadata, customMetadata } = obj;
-        return { key, size, uploaded, httpMetadata, customMetadata };
+        const { key, size, uploaded, httpMetadata, customMetadata, etag } = obj;
+        // Clean ETag (remove quotes)
+        const cleanEtag = etag ? etag.replace(/"/g, "") : "";
+        return { key, size, uploaded, httpMetadata, customMetadata, etag: cleanEtag };
       });
 
     let folders = objList.delimitedPrefixes;

@@ -1,6 +1,8 @@
+import { verifyJWT } from "./jwt";
+
 const THUMBNAIL_PREFIX = "_$flaredrive$/thumbnails/";
 
-function parseAllowList(value) {
+function parseAllowList(value: string | undefined): string[] {
   if (!value) return [];
   return value
     .split(",")
@@ -8,39 +10,82 @@ function parseAllowList(value) {
     .filter((entry) => entry.length > 0);
 }
 
-function matchesAllowList(targetPath, allowList) {
+function matchesAllowList(targetPath: string, allowList: string[]): boolean {
   if (allowList.includes("*")) return true;
   return allowList.some((allow) => targetPath.startsWith(allow));
 }
 
-function getAllowListForRequest(context) {
-  const headers = new Headers(context.request.headers);
+// Timing safe equality helper for string verification
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+async function getAllowListForRequest(context: any): Promise<string[] | null> {
+  const { request, env } = context;
+  const headers = new Headers(request.headers);
   const authorization = headers.get("Authorization");
-  if (authorization && authorization.startsWith("Basic ")) {
-    const account = atob(authorization.split("Basic ")[1]);
-    if (account && context.env[account]) {
-      return parseAllowList(context.env[account]);
+
+  if (authorization) {
+    // 1. 优先尝试 Bearer JWT Token 验证
+    if (authorization.startsWith("Bearer ")) {
+      const token = authorization.substring(7).trim();
+      const secret = env.JWT_SECRET || "default_jwt_secret_key_123456";
+      const payload = await verifyJWT(token, secret);
+      if (payload && payload.username) {
+        const username = payload.username;
+        // 如果是管理员账号，读取其环境变量配置，若无则默认拥有全部权限 (*)
+        const adminUser = env.ADMIN_USERNAME || "admin";
+        if (username === adminUser) {
+          const customAllowList = env[username] || env["ADMIN_ALLOW_LIST"];
+          return customAllowList ? parseAllowList(customAllowList) : ["*"];
+        }
+        // 普通用户的 allow-list
+        if (env[username]) {
+          return parseAllowList(env[username]);
+        }
+      }
+    }
+
+    // 2. 备用支持原有的 Basic Auth 验证 (兼容旧 API 或工具)
+    if (authorization.startsWith("Basic ")) {
+      try {
+        const account = atob(authorization.split("Basic ")[1]);
+        if (account && env[account]) {
+          return parseAllowList(env[account]);
+        }
+      } catch (e) {
+        // 解码失败忽略
+      }
     }
   }
-  if (context.env["GUEST"]) {
-    return parseAllowList(context.env["GUEST"]);
+
+  // 3. 访客 GUEST 权限
+  if (env["GUEST"]) {
+    return parseAllowList(env["GUEST"]);
   }
+
   return null;
 }
 
-export function can_access_path(context, targetPath) {
+export async function can_access_path(context: any, targetPath: string): Promise<boolean> {
   if (targetPath.startsWith(THUMBNAIL_PREFIX)) return true;
-  const allowList = getAllowListForRequest(context);
+  const allowList = await getAllowListForRequest(context);
   if (!allowList) return false;
   return matchesAllowList(targetPath, allowList);
 }
 
-export function get_allow_list(context) {
+export async function get_allow_list(context: any): Promise<string[] | null> {
   return getAllowListForRequest(context);
 }
 
-export function get_auth_status(context) {
-  const dopath = context.request.url.split("/api/write/items/")[1];
+export async function get_auth_status(context: any): Promise<boolean> {
+  const url = new URL(context.request.url);
+  const dopath = url.pathname.split("/api/write/items/")[1];
   if (!dopath) return false;
   return can_access_path(context, dopath);
 }

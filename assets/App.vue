@@ -15,6 +15,7 @@
           fill="#e6e6e6" p-id="24281"></path>
       </svg>
     </button>
+    
     <div class="app-bar">
       <a class="app-title-container" style="display: flex; align-items: center;" href="/">
         <img src="/assets/homescreen.png" alt="FlareDrive" style="height: 24px" />
@@ -22,6 +23,7 @@
       </a>
 
       <input type="search" v-model="search" aria-label="Search" placeholder="🍿 输入以全局搜索文件" />
+      
       <div class="menu-button">
         <button class="circle" @click="showMenu = true" style="display: flex; align-items: center;background-color: rgb(245, 245, 245);">
           <p style="
@@ -31,7 +33,7 @@
               font-family: '寒蝉半圆体', -apple-system, BlinkMacSystemFont, 'Segoe UI Adjusted',
     'Segoe UI', 'Liberation Sans', sans-serif;"
               class="menu-button-text">
-            菜单
+            {{ isLoggedIn ? '管理' : '菜单' }}
           </p>
           <svg t="1741761597964" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
             p-id="22027" width="24" height="24">
@@ -41,11 +43,26 @@
           </svg>
         </button>
         <Menu v-model="showMenu"
-          :items="[{ text: '按照名称排序A-Z' }, { text: '按照大小递增排序' }, { text: '按照大小递减排序' }, { text: '粘贴文件到网盘' }]"
+          :items="menuItems"
           @click="onMenuClick" />
       </div>
     </div>
+
     <div class="file-list-container">
+      <!-- 存储容量卡片 -->
+      <div v-if="storageStats" class="storage-widget">
+        <div class="storage-info">
+          <span>💾 存储空间: {{ formatSize(storageStats.usedBytes) }} / {{ formatSize(storageStats.quotaBytes) }}</span>
+          <span>已使用 {{ ((storageStats.usedBytes / storageStats.quotaBytes) * 100).toFixed(1) }}%</span>
+        </div>
+        <div class="storage-progress-bar">
+          <div class="storage-progress-fill" :style="{ width: Math.min(100, (storageStats.usedBytes / storageStats.quotaBytes) * 100) + '%' }"></div>
+        </div>
+        <div class="storage-footer-stats">
+          <span>文件数: {{ storageStats.fileCount }} | 文件夹: {{ storageStats.folderCount || 0 }}</span>
+        </div>
+      </div>
+
       <ul class="file-list">
         <li v-if="cwd !== ''">
           <div tabindex="0" class="file-item" @click="cwd = cwd.replace(/[^\/]+\/$/, '')" @contextmenu.prevent>
@@ -56,7 +73,6 @@
               </svg>
             </div>
             <div class="file-info-container"><span class="file-name">返回上级目录</span></div>
-
           </div>
         </li>
         <li v-for="folder in filteredFolders" :key="folder">
@@ -89,7 +105,7 @@
           <div @click="preview(`/raw/${file.key}`)" @contextmenu.prevent="
             showContextMenu = true;
           focusedItem = file;" class="file-item" style="position: relative;">
-            <MimeIcon :content-type="file.httpMetadata.contentType" :thumbnail="file.customMetadata.thumbnail
+            <MimeIcon :content-type="file.httpMetadata?.contentType" :thumbnail="file.customMetadata?.thumbnail
               ? `/raw/_$flaredrive$/thumbnails/${file.customMetadata.thumbnail}.png`
               : null
               " />
@@ -115,16 +131,19 @@
         </li>
       </ul>
     </div>
+    
     <div v-if="loading" style="margin: 20px 0; text-align: center">
       <span style="font-size: 20px;">加载中...</span>
     </div>
     <div v-else-if="!filteredFiles.length && !filteredFolders.length" style="margin: 20px 0; text-align: center">
       <span style="font-size: 20px;">没有文件</span>
     </div>
+
+    <!-- 上下文右键菜单 -->
     <Dialog v-model="showContextMenu">
       <div
         style="height: 50px;display: flex; justify-content: center; align-items: center; padding:10px; background: #ddd; margin: 0 0 10px 0; border-radius: 8px;">
-        <div v-text="focusedItem.key || focusedItem" class="contextmenu-filename" @click.stop.prevent
+        <div v-text="focusedItem?.key || focusedItem" class="contextmenu-filename" @click.stop.prevent
           style="height:20px;width: 100%; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
       </div>
       <ul v-if="typeof focusedItem === 'string'" class="contextmenu-list">
@@ -146,37 +165,254 @@
       </ul>
       <ul v-else class="contextmenu-list">
         <li>
-          <button @click="renameFile(focusedItem.key)">
+          <button @click="renameFile(focusedItem?.key)">
             <span>重命名</span>
           </button>
         </li>
         <li>
-          <a :href="`/raw/${focusedItem.key}`" target="_blank" download>
+          <a :href="`/raw/${focusedItem?.key}`" target="_blank" download>
             <span>下载</span>
           </a>
         </li>
         <li>
-          <button @click="clipboard = focusedItem.key">
+          <button @click="clipboard = focusedItem?.key">
             <span>复制</span>
           </button>
         </li>
         <li>
-          <button @click="moveFile(focusedItem.key)">
+          <button @click="moveFile(focusedItem?.key)">
             <span>移动</span>
           </button>
         </li>
         <li>
-          <button @click="copyLink(`/raw/${focusedItem.key}`)">
+          <button @click="copyLink(`/raw/${focusedItem?.key}`)">
             <span>复制链接</span>
           </button>
         </li>
         <li>
-          <button style="color: red" @click="removeFile(focusedItem.key)">
+          <button style="color: red" @click="removeFile(focusedItem?.key)">
             <span>删除</span>
           </button>
         </li>
       </ul>
     </Dialog>
+
+    <!-- 管理员登录弹窗 -->
+    <Dialog v-model="showLogin">
+      <div class="login-header">
+        <h3>管理员登录</h3>
+        <p>输入凭证以获取网盘及版本管理权限</p>
+      </div>
+      <div class="login-form">
+        <div class="input-field">
+          <input type="text" v-model="loginUsername" placeholder="用户名" />
+        </div>
+        <div class="input-field">
+          <input type="password" v-model="loginPassword" placeholder="密码" @keyup.enter="handleLogin" />
+        </div>
+        
+        <!-- Turnstile 容器 -->
+        <div v-show="turnstileSiteKey" id="turnstile-container" class="turnstile-box"></div>
+
+        <div class="login-options">
+          <label class="remember-label">
+            <input type="checkbox" v-model="rememberMe" /> 记住密码
+          </label>
+          <a href="javascript:void(0)" class="forgot-link" @click="showForgotTips = true">忘记密码？</a>
+        </div>
+        
+        <button class="btn-primary" @click="handleLogin">登 录</button>
+      </div>
+    </Dialog>
+
+    <!-- 忘记密码提示弹窗 -->
+    <Dialog v-model="showForgotTips">
+      <div class="forgot-tips-container">
+        <h4>🔑 管理员密码找回与重置指南</h4>
+        <div class="forgot-tips-content">
+          <p>本系统采用 Serverless 架构，您的账号密码配置在 Cloudflare 环境变量中。</p>
+          <ol>
+            <li>登录您的 <strong>Cloudflare 控制台</strong>。</li>
+            <li>进入 <strong>Workers & Pages</strong> 菜单，选择您的网盘 Pages 项目。</li>
+            <li>切换到 <strong>Settings (设置)</strong> 选项卡 -> 选择 <strong>Variables and Secrets (变量与机密)</strong>。</li>
+            <li>在环境变量列表中直接查看或修改管理员账号密码：
+              <ul>
+                <li>若配置了 <code>ADMIN_PASSWORD_HASH</code>，该值对应的是密码的 SHA-256 哈希值。</li>
+                <li>若配置了原版 <code>admin</code> 变量，格式为 <code>用户名:密码</code>。</li>
+              </ul>
+            </li>
+            <li>若修改了密码，请重新点击 <strong>Deploy (重新部署)</strong> 即可生效。</li>
+          </ol>
+        </div>
+        <button class="btn-secondary" @click="showForgotTips = false" style="margin-top: 15px;">我知道了</button>
+      </div>
+    </Dialog>
+
+    <!-- 系统管理与 App 更新面板 -->
+    <Dialog v-model="showAdminPanel">
+      <div class="admin-panel">
+        <div class="admin-header">
+          <h3>⚙️ 系统管理与版本发布</h3>
+          <button class="btn-close-text" @click="showAdminPanel = false">关闭</button>
+        </div>
+        
+        <div class="admin-tabs">
+          <button :class="{ active: activeTab === 'storage' }" @click="activeTab = 'storage'">存储容量管理</button>
+          <button :class="{ active: activeTab === 'updates' }" @click="activeTab = 'updates'">App 版本更新</button>
+        </div>
+
+        <!-- 标签页 1: 存储容量管理 -->
+        <div v-if="activeTab === 'storage'" class="tab-content">
+          <div class="storage-panel-details" v-if="storageStats">
+            <div class="stat-row">
+              <span>总容量额度 (Quota):</span> <strong>{{ formatSize(storageStats.quotaBytes) }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>已使用大小 (Used):</span> <strong>{{ formatSize(storageStats.usedBytes) }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>文件总数 (Files):</span> <strong>{{ storageStats.fileCount }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>文件夹总数 (Folders):</span> <strong>{{ storageStats.folderCount || 0 }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>数据校准时间:</span> <span>{{ new Date(storageStats.lastUpdated || Date.now()).toLocaleString() }}</span>
+            </div>
+            
+            <div class="stat-warning-box">
+              <p>💡 提示：当上传或删除文件时，系统会在 R2 中增量统计存储大小。若偶遇容量显示不准，请点击下方按钮重新扫描全桶校准。</p>
+            </div>
+            
+            <button class="btn-warn" @click="recalculateStorage">重新扫描并校准存储大小</button>
+          </div>
+        </div>
+
+        <!-- 标签页 2: App 更新管理 -->
+        <div v-if="activeTab === 'updates'" class="tab-content">
+          <div v-if="!editingApp" class="app-list-view">
+            <div class="section-title-btn">
+              <h4>应用发布列表</h4>
+              <button class="btn-sm-primary" @click="createAppUpdate">发布新 App 版本</button>
+            </div>
+            
+            <div v-if="Object.keys(appsUpdates).length === 0" class="empty-list-info">
+              暂无 App 更新发布配置。
+            </div>
+            <ul v-else class="app-update-list">
+              <li v-for="(app, id) in appsUpdates" :key="id" class="app-update-item">
+                <div class="app-item-info">
+                  <strong>{{ app.appName }}</strong> <span class="app-id-tag">({{ id }})</span>
+                  <div class="app-item-meta">
+                    最新版本: v{{ app.latestVersionName }} (Build {{ app.latestVersionCode }}) | 配套安装包: {{ app.packages ? app.packages.length : 0 }}
+                  </div>
+                </div>
+                <div class="app-item-actions">
+                  <button @click="editAppUpdate(id, app)">编辑</button>
+                  <button class="btn-text-danger" @click="deleteAppUpdate(id)">删除</button>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 编辑 App 更新配置表单 -->
+          <div v-else class="app-edit-view">
+            <h4 style="margin-top:0;margin-bottom:15px;">配置应用版本更新</h4>
+            <div class="form-group">
+              <label>应用包名 (App ID) *</label>
+              <input type="text" v-model="editingApp.appId" :disabled="!isNewApp" placeholder="例如 com.example.app" />
+            </div>
+            <div class="form-group">
+              <label>应用显示名称 (App Name) *</label>
+              <input type="text" v-model="editingApp.appName" placeholder="例如 极简网盘" />
+            </div>
+            <div class="form-group-row">
+              <div class="form-group">
+                <label>最新 Version Code *</label>
+                <input type="number" v-model="editingApp.latestVersionCode" placeholder="例如 200" />
+              </div>
+              <div class="form-group">
+                <label>最新 Version Name *</label>
+                <input type="text" v-model="editingApp.latestVersionName" placeholder="例如 2.0.0" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="editingApp.isForceUpdate" /> 强制更新 (锁定主程序需更新才能运行)
+              </label>
+            </div>
+            <div class="form-group">
+              <label>更新日志 (Changelog)</label>
+              <textarea v-model="editingApp.updateLog" rows="3" placeholder="填写新版本更新日志..."></textarea>
+            </div>
+
+            <!-- 配套包管理 -->
+            <div class="packages-section">
+              <div class="section-title-btn">
+                <h5>关联安装包列表 (Packages)</h5>
+                <button class="btn-sm-secondary" @click="addPackageItem">+ 添加安装包</button>
+              </div>
+              
+              <div v-if="editingApp.packages.length === 0" class="empty-packages">
+                暂未关联任何 APK 包（支持同时上传原版、Xposed模块版、LSPatch版等配套组件）。
+              </div>
+              
+              <div v-for="(pkg, idx) in editingApp.packages" :key="idx" class="package-edit-card">
+                <div class="package-card-header">
+                  <h6>安装包 #{{ idx + 1 }}</h6>
+                  <button class="btn-text-danger btn-sm" @click="removePackageItem(idx)">移除该包</button>
+                </div>
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label>包唯一标识 (Package ID)</label>
+                    <input type="text" v-model="pkg.packageId" placeholder="例如 main_apk / lspatch_apk / module_apk" />
+                  </div>
+                  <div class="form-group">
+                    <label>包显示名称 (Name)</label>
+                    <input type="text" v-model="pkg.packageName" placeholder="例如 官方原版 / 独立 Xposed 模块" />
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label>快速关联已上传的文件 (自动填充大小及 MD5)</label>
+                  <select @change="onSelectFileForPackage($event, pkg)">
+                    <option value="">-- 选择网盘当前目录下的 APK 文件 --</option>
+                    <option v-for="file in files.filter(f => f.key.endsWith('.apk'))" :key="file.key" :value="file.key">
+                      {{ file.key.split('/').pop() }} ({{ formatSize(file.size) }})
+                    </option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>下载直链地址 (Download URL)</label>
+                  <input type="text" v-model="pkg.downloadUrl" placeholder="输入 /raw/apks/app.apk" />
+                </div>
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label>文件大小 (Bytes)</label>
+                    <input type="number" v-model="pkg.apkSize" />
+                  </div>
+                  <div class="form-group">
+                    <label>文件 MD5 校验码</label>
+                    <input type="text" v-model="pkg.apkMd5" placeholder="关联文件后会自动获取" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>包功能描述</label>
+                  <input type="text" v-model="pkg.description" placeholder="简单说明此包的特征或适用范围" />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn-primary" @click="saveAppUpdate">保存并发布</button>
+              <button class="btn-secondary" @click="editingApp = null">返回列表</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+
     <div style="flex:1"></div>
     <Footer />
   </div>
@@ -210,7 +446,23 @@ export default {
     showUploadPopup: false,
     uploadProgress: null,
     uploadQueue: [],
-    backgroundImageUrl: "/assets/bg-light.webp"
+    backgroundImageUrl: "/assets/bg-light.webp",
+
+    // 新增：安全与管理后台状态
+    showLogin: false,
+    showForgotTips: false,
+    loginUsername: "",
+    loginPassword: "",
+    turnstileToken: "",
+    isLoggedIn: false,
+    rememberMe: true,
+    turnstileSiteKey: null,
+    storageStats: null,
+    showAdminPanel: false,
+    activeTab: "storage",
+    appsUpdates: {},
+    editingApp: null,
+    isNewApp: false
   }),
 
   computed: {
@@ -218,7 +470,7 @@ export default {
       let files = this.files;
       if (this.search) {
         files = files.filter((file) =>
-          file.key.split("/").pop().includes(this.search)
+          file.key.split("/").pop().toLowerCase().includes(this.search.toLowerCase())
         );
       }
       return files;
@@ -227,10 +479,29 @@ export default {
     filteredFolders() {
       let folders = this.folders;
       if (this.search) {
-        folders = folders.filter((folder) => folder.includes(this.search));
+        folders = folders.filter((folder) => 
+          folder.toLowerCase().includes(this.search.toLowerCase())
+        );
       }
       return folders;
     },
+
+    // 动态生成菜单项 (基于登录状态)
+    menuItems() {
+      const items = [
+        { text: '按照名称排序A-Z' },
+        { text: '按照大小递增排序' },
+        { text: '按照大小递减排序' },
+        { text: '粘贴文件到网盘' }
+      ];
+      if (this.isLoggedIn) {
+        items.push({ text: '网盘空间与版本管理' });
+        items.push({ text: '安全退出登录' });
+      } else {
+        items.push({ text: '管理员登录' });
+      }
+      return items;
+    }
   },
 
   methods: {
@@ -254,12 +525,8 @@ export default {
         const uploadUrl = `/api/write/items/${this.cwd}${folderName}/_$folder$`;
         await axios.put(uploadUrl, "");
         this.fetchFiles();
+        this.fetchStorageStats();
       } catch (error) {
-        fetch("/api/write/")
-          .then((value) => {
-            if (value.redirected) window.location.href = value.url;
-          })
-          .catch(() => { });
         console.log(`Create folder failed`);
       }
     },
@@ -292,6 +559,7 @@ export default {
     },
 
     formatSize(size) {
+      if (!size) return "0 B";
       const units = ["B", "KB", "MB", "GB", "TB"];
       let i = 0;
       while (size >= 1024) {
@@ -324,6 +592,15 @@ export default {
           break;
         case "粘贴文件到网盘":
           return this.pasteFile();
+        case "管理员登录":
+          this.showLogin = true;
+          break;
+        case "网盘空间与版本管理":
+          this.openAdminPanel();
+          break;
+        case "安全退出登录":
+          this.logout();
+          break;
       }
       this.files.sort((a, b) => {
         if (this.order === "大小↑") {
@@ -354,17 +631,19 @@ export default {
       if (newName === "") newName = this.clipboard.split("/").pop();
       await this.copyPaste(this.clipboard, `${this.cwd}${newName}`);
       this.fetchFiles();
+      this.fetchStorageStats();
     },
 
     async processUploadQueue() {
       if (!this.uploadQueue.length) {
         this.fetchFiles();
+        this.fetchStorageStats(); // 刷新容量
         this.uploadProgress = null;
         return;
       }
 
       /** @type File **/
-      const { basedir, file } = this.uploadQueue.pop(0);
+      const { basedir, file } = this.uploadQueue.shift(); // shift先进先出，比pop更符合队列逻辑
       let thumbnailDigest = null;
 
       if (file.type.startsWith("image/") || file.type === "video/mp4") {
@@ -377,11 +656,6 @@ export default {
             await axios.put(thumbnailUploadUrl, thumbnailBlob);
             thumbnailDigest = digestHex;
           } catch (error) {
-            fetch("/api/write/")
-              .then((value) => {
-                if (value.redirected) window.location.href = value.url;
-              })
-              .catch(() => { });
             console.log(`Upload ${digestHex}.png failed`);
           }
         } catch (error) {
@@ -407,11 +681,6 @@ export default {
           await axios.put(uploadUrl, file, { headers, onUploadProgress });
         }
       } catch (error) {
-        fetch("/api/write/")
-          .then((value) => {
-            if (value.redirected) window.location.href = value.url;
-          })
-          .catch(() => { });
         console.log(`Upload ${file.name} failed`, error);
       }
       setTimeout(this.processUploadQueue);
@@ -421,6 +690,7 @@ export default {
       if (!window.confirm(`确定要删除 ${key} 吗？`)) return;
       await axios.delete(`/api/write/items/${key}`);
       this.fetchFiles();
+      this.fetchStorageStats();
     },
 
     async renameFile(key) {
@@ -432,11 +702,9 @@ export default {
     },
 
     async moveFile(key) {
-      // 获取当前的目录结构
-      const currentPath = this.cwd; // 当前所在目录
-      const allFolders = [...this.folders]; // 所有可用目录
+      const currentPath = this.cwd;
+      const allFolders = [...this.folders];
 
-      // 如果不在根目录，添加返回上级目录选项
       if (currentPath !== '') {
         const parentPath = currentPath.replace(/[^\/]+\/$/, '');
         if (!allFolders.includes(parentPath) && parentPath !== '') {
@@ -444,12 +712,10 @@ export default {
         }
       }
 
-      // 添加根目录选项
       if (!allFolders.includes('')) {
         allFolders.unshift('');
       }
 
-      // 构建选择列表
       const folderOptions = allFolders.map(folder => {
         const displayName = folder === '' ? '根目录' :
           folder === currentPath ? '当前目录' :
@@ -460,7 +726,6 @@ export default {
         };
       });
 
-      // 创建选择提示
       const options = folderOptions.map((opt, index) =>
         `${index + 1}. ${opt.display}`
       ).join('\n');
@@ -477,42 +742,25 @@ export default {
       }
 
       const targetPath = folderOptions[selectedIndex].value;
-
-      // 获取文件名
       const fileName = key.split('/').pop();
-      // 如果是文件夹,需要移除_$folder$后缀
       const finalFileName = fileName.endsWith('_$folder$') ? fileName.slice(0, -9) : fileName;
-
-      // 修复：正确处理目标路径，避免双斜杠
       const normalizedPath = targetPath === '' ? '' : (targetPath.endsWith('/') ? targetPath : targetPath + '/');
 
       try {
-        // 如果是目录（以_$folder$结尾），则需要移动整个目录内容
         if (key.endsWith('_$folder$')) {
-          // 获取源目录的基础路径（移除_$folder$后缀）
           const sourceBasePath = key.slice(0, -9);
-          // 获取目标目录的基础路径，修复根目录的情况
           const targetBasePath = normalizedPath + finalFileName + '/';
-
-          // 递归获取所有子文件和子目录
           const allItems = await this.getAllItems(sourceBasePath);
-
-          // 显示进度提示
           const totalItems = allItems.length;
           let processedItems = 0;
 
-          // 移动所有项目
           for (const item of allItems) {
             const relativePath = item.key.substring(sourceBasePath.length);
             const newPath = targetBasePath + relativePath;
 
             try {
-              // 复制到新位置
               await this.copyPaste(item.key, newPath);
-              // 删除原位置
               await axios.delete(`/api/write/items/${item.key}`);
-
-              // 更新进度
               processedItems++;
               this.uploadProgress = (processedItems / totalItems) * 100;
             } catch (error) {
@@ -520,68 +768,50 @@ export default {
             }
           }
 
-          // 移动目录标记
           const targetFolderPath = targetBasePath.slice(0, -1) + '_$folder$';
           await this.copyPaste(key, targetFolderPath);
           await axios.delete(`/api/write/items/${key}`);
-
-          // 清除进度
           this.uploadProgress = null;
         } else {
-          // 单文件移动逻辑，修复根目录的情况
           const targetFilePath = normalizedPath + finalFileName;
           await this.copyPaste(key, targetFilePath);
           await axios.delete(`/api/write/items/${key}`);
         }
-
-        // 刷新文件列表
         this.fetchFiles();
+        this.fetchStorageStats();
       } catch (error) {
         console.error('移动失败:', error);
         alert('移动失败,请检查目标路径是否正确');
       }
     },
 
-    // 新增：递归获取目录下所有文件和子目录
     async getAllItems(prefix) {
       const items = [];
       let marker = null;
-
       do {
         const url = new URL(`/api/children/${prefix}`, window.location.origin);
         if (marker) {
           url.searchParams.set('marker', marker);
         }
-
         const response = await fetch(url);
         const data = await response.json();
-
-        // 添加文件
         items.push(...data.value);
-
-        // 处理子目录
         for (const folder of data.folders) {
-          // 添加目录标记
           items.push({
             key: folder + '_$folder$',
             size: 0,
             uploaded: new Date().toISOString(),
           });
-
-          // 递归获取子目录内容
           const subItems = await this.getAllItems(folder);
           items.push(...subItems);
         }
-
         marker = data.marker;
       } while (marker);
-
       return items;
     },
 
     uploadFiles(files) {
       if (this.cwd && !this.cwd.endsWith("/")) this.cwd += "/";
-
       const uploadTasks = Array.from(files).map((file) => ({
         basedir: this.cwd,
         file,
@@ -589,6 +819,204 @@ export default {
       this.uploadQueue.push(...uploadTasks);
       setTimeout(() => this.processUploadQueue());
     },
+
+    // 新增：安全与后台管理相关方法
+    fetchSystemConfig() {
+      axios.get("/api/config")
+        .then(res => {
+          this.turnstileSiteKey = res.data.turnstileSiteKey;
+          if (this.turnstileSiteKey) {
+            this.loadTurnstileScript();
+          }
+        })
+        .catch(err => console.error("读取系统配置失败:", err));
+    },
+
+    loadTurnstileScript() {
+      if (document.getElementById("turnstile-script")) return;
+      const script = document.createElement("script");
+      script.id = "turnstile-script";
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    },
+
+    fetchStorageStats() {
+      axios.get("/api/storage/usage")
+        .then(res => {
+          this.storageStats = res.data;
+        })
+        .catch(err => console.error("获取存储统计失败:", err));
+    },
+
+    recalculateStorage() {
+      if (!confirm("确定要全量扫描并校准存储大小吗？这可能需要几十秒。")) return;
+      this.loading = true;
+      axios.post("/api/storage/recalculate")
+        .then(res => {
+          if (res.data.success) {
+            this.storageStats = res.data.stats;
+            alert("容量校准成功！");
+          }
+        })
+        .catch(err => alert("校准容量失败：" + (err.response?.data?.error || err.message)))
+        .finally(() => this.loading = false);
+    },
+
+    handleLogin() {
+      if (!this.loginUsername || !this.loginPassword) {
+        alert("请选输入账号和密码");
+        return;
+      }
+
+      let token = "";
+      if (this.turnstileSiteKey && window.turnstile) {
+        token = window.turnstile.getResponse();
+        if (!token) {
+          alert("请先完成验证码校验");
+          return;
+        }
+      }
+
+      axios.post("/api/login", {
+        username: this.loginUsername,
+        password: this.loginPassword,
+        turnstileToken: token
+      })
+      .then(res => {
+        const token = res.data.token;
+        if (this.rememberMe) {
+          localStorage.setItem("flaredrive_token", token);
+          localStorage.setItem("flaredrive_username", this.loginUsername);
+        } else {
+          sessionStorage.setItem("flaredrive_token", token);
+        }
+        this.isLoggedIn = true;
+        this.showLogin = false;
+        this.loginPassword = ""; // 安全擦除密码
+        this.fetchFiles();
+        this.fetchStorageStats();
+      })
+      .catch(err => {
+        alert("登录失败：" + (err.response?.data?.error || err.message));
+        if (this.turnstileSiteKey && window.turnstile) {
+          window.turnstile.reset();
+        }
+      });
+    },
+
+    logout() {
+      localStorage.removeItem("flaredrive_token");
+      sessionStorage.removeItem("flaredrive_token");
+      this.isLoggedIn = false;
+      this.showAdminPanel = false;
+      alert("已成功退出登录！");
+      this.fetchFiles();
+      this.fetchStorageStats();
+    },
+
+    openAdminPanel() {
+      this.showAdminPanel = true;
+      this.fetchAppUpdates();
+    },
+
+    fetchAppUpdates() {
+      // 通过管理员授权通道直接读取存储桶中的更新配置
+      axios.get("/raw/_$flaredrive$/metadata/app_updates.json")
+        .then(res => {
+          this.appsUpdates = res.data.apps || {};
+        })
+        .catch(err => {
+          if (err.response?.status === 404) {
+            this.appsUpdates = {};
+          } else {
+            console.error("获取 App 更新配置失败:", err);
+          }
+        });
+    },
+
+    createAppUpdate() {
+      this.editingApp = {
+        appId: "",
+        appName: "",
+        latestVersionCode: 100,
+        latestVersionName: "1.0.0",
+        updateLog: "",
+        isForceUpdate: false,
+        packages: []
+      };
+      this.isNewApp = true;
+    },
+
+    editAppUpdate(id, app) {
+      this.editingApp = {
+        appId: id,
+        ...JSON.parse(JSON.stringify(app))
+      };
+      this.isNewApp = false;
+    },
+
+    deleteAppUpdate(id) {
+      if (!confirm(`确定要彻底删除该应用 (${id}) 的更新配置吗？`)) return;
+      this.loading = true;
+      axios.post("/api/admin/update/publish", {
+        appId: id,
+        deleteAction: true
+      })
+      .then(() => {
+        alert("删除成功！");
+        this.fetchAppUpdates();
+      })
+      .catch(err => alert("删除失败：" + (err.response?.data?.error || err.message)))
+      .finally(() => this.loading = false);
+    },
+
+    addPackageItem() {
+      this.editingApp.packages.push({
+        packageId: "",
+        packageName: "",
+        versionCode: this.editingApp.latestVersionCode,
+        versionName: this.editingApp.latestVersionName,
+        description: "",
+        downloadUrl: "",
+        apkSize: 0,
+        apkMd5: ""
+      });
+    },
+
+    removePackageItem(idx) {
+      this.editingApp.packages.splice(idx, 1);
+    },
+
+    onSelectFileForPackage(event, pkg) {
+      const fileKey = event.target.value;
+      if (!fileKey) return;
+      const file = this.files.find(f => f.key === fileKey);
+      if (file) {
+        pkg.downloadUrl = `/raw/${file.key}`;
+        pkg.apkSize = file.size;
+        pkg.apkMd5 = file.etag || "";
+        pkg.versionCode = this.editingApp.latestVersionCode;
+        pkg.versionName = this.editingApp.latestVersionName;
+      }
+    },
+
+    saveAppUpdate() {
+      if (!this.editingApp.appId || !this.editingApp.appName || !this.editingApp.latestVersionCode || !this.editingApp.latestVersionName) {
+        alert("请填写所有必填字段 (*)");
+        return;
+      }
+      this.loading = true;
+      axios.post("/api/admin/update/publish", this.editingApp)
+      .then(() => {
+        alert("应用更新发布成功！");
+        this.editingApp = null;
+        this.fetchAppUpdates();
+      })
+      .catch(err => alert("保存发布失败：" + (err.response?.data?.error || err.message)))
+      .finally(() => this.loading = false);
+    }
   },
 
   watch: {
@@ -608,14 +1036,87 @@ export default {
       },
       immediate: true,
     },
+
+    // 监控登录弹窗以异步渲染 Turnstile 人机校验
+    showLogin(val) {
+      if (val && this.turnstileSiteKey) {
+        setTimeout(() => {
+          if (window.turnstile && document.getElementById("turnstile-container")) {
+            window.turnstile.render("#turnstile-container", {
+              sitekey: this.turnstileSiteKey,
+              callback: (token) => {
+                this.turnstileToken = token;
+              }
+            });
+          }
+        }, 100);
+      }
+    }
   },
 
   created() {
+    // 1. 设置 JWT 自动携带及 401 拦截器 (Axios)
+    axios.interceptors.request.use((config) => {
+      const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          this.isLoggedIn = false;
+          this.showLogin = true;
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // 2. 拦截全局原生 fetch 并在 401 时唤起登录
+    const originalFetch = window.fetch;
+    const self = this;
+    window.fetch = async function (input, init) {
+      init = init || {};
+      init.headers = init.headers || {};
+      const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+      if (token) {
+        if (init.headers instanceof Headers) {
+          init.headers.set("Authorization", "Bearer " + token);
+        } else if (Array.isArray(init.headers)) {
+          const idx = init.headers.findIndex(h => h[0] === "Authorization");
+          if (idx !== -1) init.headers[idx][1] = "Bearer " + token;
+          else init.headers.push(["Authorization", "Bearer " + token]);
+        } else {
+          init.headers["Authorization"] = "Bearer " + token;
+        }
+      }
+      const response = await originalFetch(input, init);
+      if (response.status === 401) {
+        self.isLoggedIn = false;
+        self.showLogin = true;
+      }
+      return response;
+    };
+
+    // 3. 监听路由历史
     window.addEventListener("popstate", (ev) => {
       const searchParams = new URL(window.location).searchParams;
       if (searchParams.get("p") !== this.cwd)
         this.cwd = searchParams.get("p") || "";
     });
+
+    // 4. 读取持久化登录态
+    const savedToken = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+    if (savedToken) {
+      this.isLoggedIn = true;
+    }
+
+    // 5. 异步读取系统配置与存储统计
+    this.fetchSystemConfig();
+    this.fetchStorageStats();
   },
 
   components: {
@@ -632,7 +1133,6 @@ export default {
 .main {
   display: flex;
   height: 100%;
-  /* background-image: url(/assets/bg-light.webp); */
   background-size: cover;
   background-position: center;
   overflow-y: auto;
@@ -706,5 +1206,312 @@ export default {
   position: absolute;
   top: 100%;
   right: 0;
+}
+
+/* --- 新增安全和仪表盘样式 --- */
+.storage-widget {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  margin-bottom: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
+.storage-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-weight: bold;
+  color: #333;
+}
+.storage-progress-bar {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.storage-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.storage-footer-stats {
+  font-size: 11px;
+  color: #666;
+  text-align: right;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.login-header h3 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+}
+.login-header p {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+}
+.login-form .input-field {
+  margin-bottom: 12px;
+}
+.login-form .input-field input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+.turnstile-box {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+}
+.login-options {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  font-size: 12px;
+}
+.remember-label {
+  cursor: pointer;
+}
+.forgot-link {
+  color: #667eea;
+  text-decoration: none;
+}
+.btn-primary {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-secondary {
+  width: 100%;
+  padding: 10px;
+  background: #eee;
+  border: none;
+  border-radius: 6px;
+  color: #333;
+  cursor: pointer;
+}
+.forgot-tips-container h4 {
+  margin-top: 0;
+}
+.forgot-tips-content {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.forgot-tips-content ol, .forgot-tips-content ul {
+  padding-left: 20px;
+}
+
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  overflow-y: auto;
+  min-width: 320px;
+  width: 500px;
+  max-width: 90vw;
+  text-align: left;
+}
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+.admin-header h3 {
+  margin: 0;
+}
+.btn-close-text {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+}
+.admin-tabs {
+  display: flex;
+  margin-top: 10px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+.admin-tabs button {
+  flex: 1;
+  padding: 8px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+}
+.admin-tabs button.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  font-weight: bold;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed #eee;
+  font-size: 13px;
+}
+.stat-warning-box {
+  background: #fff3cd;
+  color: #856404;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  margin: 12px 0;
+}
+.btn-warn {
+  width: 100%;
+  padding: 10px;
+  background: #ffc107;
+  border: none;
+  border-radius: 6px;
+  color: #212529;
+  font-weight: bold;
+  cursor: pointer;
+}
+.section-title-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.section-title-btn h4 {
+  margin: 0;
+}
+.btn-sm-primary {
+  padding: 5px 10px;
+  background: #667eea;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+}
+.btn-sm-secondary {
+  padding: 5px 10px;
+  background: #eee;
+  border: none;
+  border-radius: 4px;
+  color: #333;
+  font-size: 11px;
+  cursor: pointer;
+}
+.app-update-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.app-update-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.app-id-tag {
+  font-size: 11px;
+  color: #888;
+  margin-left: 4px;
+}
+.app-item-meta {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+}
+.app-item-actions button {
+  padding: 3px 6px;
+  margin-left: 4px;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.empty-list-info, .empty-packages {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: #888;
+}
+.form-group {
+  margin-bottom: 10px;
+}
+.form-group label {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 3px;
+}
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 12px;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.form-group-row {
+  display: flex;
+  gap: 8px;
+}
+.form-group-row .form-group {
+  flex: 1;
+}
+.packages-section {
+  border-top: 1px solid #eee;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.package-edit-card {
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  background: rgba(0,0,0,0.02);
+}
+.package-card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.package-card-header h6 {
+  margin: 0;
+  font-size: 12px;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+  border-top: 1px solid #eee;
+  padding-top: 12px;
 }
 </style>
