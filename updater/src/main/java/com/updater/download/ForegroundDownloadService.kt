@@ -257,7 +257,16 @@ class ForegroundDownloadService : Service() {
     }
 
     override fun onDestroy() {
-        executor.shutdown()
+        for (call in activeCalls.values) {
+            try {
+                call.cancel()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        activeCalls.clear()
+        activeTasks.clear()
+        executor.shutdownNow()
         super.onDestroy()
     }
 }

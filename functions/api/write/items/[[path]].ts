@@ -73,6 +73,11 @@ export async function onRequestPostCompleteMultipart(context) {
 }
 
 export async function onRequestPost(context) {
+  if(!await get_auth_status(context)){
+    return new Response("没有操作权限", {
+        status: 401,
+    });
+   }
   const url = new URL(context.request.url);
   const searchParams = new URLSearchParams(url.search);
 

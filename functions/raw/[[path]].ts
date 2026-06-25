@@ -12,14 +12,23 @@ export async function onRequestGet(context: any) {
 
   // 2. 通过重定向或回源代理下载
   // 拼接 R2 公开直链域名进行 fetch，CF 会自动处理 Range (分片/断点续传) 以及静态资源优化
-  const url = context.env["PUBURL"] + "/" + context.request.url.split("/raw/")[1];
+  const urlObj = new URL(context.request.url);
+  const rawPrefix = "/raw/";
+  const index = urlObj.pathname.indexOf(rawPrefix);
+  const subPath = index !== -1 ? urlObj.pathname.substring(index + rawPrefix.length) : path;
+  const url = context.env["PUBURL"] + "/" + subPath + urlObj.search;
 
-  const response = await fetch(new Request(url, {
-    body: context.request.body,
+  const fetchOptions: RequestInit = {
     headers: context.request.headers,
     method: context.request.method,
     redirect: "follow",
-  }));
+  };
+
+  if (context.request.method !== "GET" && context.request.method !== "HEAD") {
+    fetchOptions.body = context.request.body;
+  }
+
+  const response = await fetch(new Request(url, fetchOptions));
 
   const headers = new Headers(response.headers);
 

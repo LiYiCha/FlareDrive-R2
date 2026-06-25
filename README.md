@@ -88,6 +88,40 @@ BUCKET
 
 ---
 
+### 💻 本地模拟与测试开发
+
+如果您想在本地运行项目进行功能测试或二次开发，请按照以下步骤操作：
+
+1. **安装依赖**：
+   确保本地安装了 Node.js 环境，在项目根目录下执行安装依赖：
+   ```bash
+   npm install
+   ```
+
+2. **配置本地开发环境变量**：
+   在项目根目录下新建一个名为 `.dev.vars` 的文件，写入您的本地测试环境变量（Wrangler 本地运行时会自动加载此文件）：
+   ```txt
+   PUBURL=http://localhost:8788
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD_HASH=8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92
+   JWT_SECRET=local_jwt_secret_key_1234567890
+   ```
+   > 📌 上述哈希密码对应明文 `123456`。
+
+3. **启动本地开发服务器**：
+   在根目录下运行以下命令：
+   ```bash
+   npm run dev
+   ```
+   该命令会自动启动 `wrangler pages dev`，在本地 `http://localhost:8788` 模拟 Pages 环境，并自动在本地绑定名为 `BUCKET` 的本地模拟 R2 存储桶。
+
+4. **进行测试**：
+   * 打开浏览器访问 `http://localhost:8788` 即可调试 Vue 网页控制台。
+   * 管理员登录，上传 APK，在应用更新面板发布更新，提取 MD5 进行测试。
+   * 安卓端调用更新时，若使用安卓模拟器测试，可以将 Host 设为 `.setBaseHost("http://10.0.2.2:8788")`（在安卓模拟器中指向开发主机的 `localhost:8788`）即可直接进行真机/模拟器本地联调测试。
+
+---
+
 ### 📱 安卓端更新模块集成 (`:updater`)
 
 项目附带了一个独立的 Kotlin 安卓库模块 `:updater`。

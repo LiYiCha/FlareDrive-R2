@@ -1,6 +1,13 @@
 import { S3Client } from "@/utils/s3";
+import { get_auth_status } from "@/utils/auth";
 
 export async function onRequest(context) {
+  if (!await get_auth_status(context)) {
+    return new Response("没有操作权限", {
+      status: 401,
+    });
+  }
+
   const { request, env } = context;
 
   const client = new S3Client(env.AWS_ACCESS_KEY_ID, env.AWS_SECRET_ACCESS_KEY);

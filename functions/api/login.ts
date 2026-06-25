@@ -100,19 +100,9 @@ export async function onRequestPost(context: any) {
     } catch (e) {
       // 解析失败忽略
     }
-  } else if (env[username]) {
+  } else if (typeof env[`${username}:${password}`] === "string") {
     // C. 兼容自定义 allow-list 配置名明文模式 (用户名:密码 作为环境变量)
-    try {
-      const parts = username.split(":");
-      if (parts.length === 2) {
-        const [u, p] = parts;
-        if (timingSafeEqual(username, u) && timingSafeEqual(password, p)) {
-          isAuthenticated = true;
-        }
-      }
-    } catch (e) {
-      // 忽略
-    }
+    isAuthenticated = true;
   }
 
   if (!isAuthenticated) {
@@ -137,7 +127,13 @@ export async function onRequestPost(context: any) {
   }
 
   // 4. 生成 JWT Token
-  const jwtSecret = env.JWT_SECRET || "default_jwt_secret_key_123456";
+  const jwtSecret = env.JWT_SECRET;
+  if (!jwtSecret) {
+    return new Response(JSON.stringify({ error: "服务器未配置 JWT_SECRET 环境变量" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
   const token = await signJWT({ username }, jwtSecret);
 
   return new Response(JSON.stringify({ token }), {

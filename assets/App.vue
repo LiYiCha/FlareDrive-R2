@@ -1058,8 +1058,17 @@ export default {
     // 1. 设置 JWT 自动携带及 401 拦截器 (Axios)
     axios.interceptors.request.use((config) => {
       const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
-      if (token) {
-        config.headers["Authorization"] = `Bearer ${token}`;
+      if (token && config.url) {
+        let isSameOrigin = false;
+        try {
+          const targetUrl = new URL(config.url, window.location.origin);
+          isSameOrigin = targetUrl.origin === window.location.origin;
+        } catch (e) {
+          isSameOrigin = !config.url.startsWith("http:") && !config.url.startsWith("https:") && !config.url.startsWith("//");
+        }
+        if (isSameOrigin) {
+          config.headers["Authorization"] = `Bearer ${token}`;
+        }
       }
       return config;
     });
@@ -1083,14 +1092,24 @@ export default {
       init.headers = init.headers || {};
       const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
       if (token) {
-        if (init.headers instanceof Headers) {
-          init.headers.set("Authorization", "Bearer " + token);
-        } else if (Array.isArray(init.headers)) {
-          const idx = init.headers.findIndex(h => h[0] === "Authorization");
-          if (idx !== -1) init.headers[idx][1] = "Bearer " + token;
-          else init.headers.push(["Authorization", "Bearer " + token]);
-        } else {
-          init.headers["Authorization"] = "Bearer " + token;
+        let isSameOrigin = false;
+        try {
+          const urlStr = typeof input === "string" ? input : input.url;
+          const targetUrl = new URL(urlStr, window.location.origin);
+          isSameOrigin = targetUrl.origin === window.location.origin;
+        } catch (e) {
+          isSameOrigin = typeof input === "string" && !input.startsWith("http:") && !input.startsWith("https:") && !input.startsWith("//");
+        }
+        if (isSameOrigin) {
+          if (init.headers instanceof Headers) {
+            init.headers.set("Authorization", "Bearer " + token);
+          } else if (Array.isArray(init.headers)) {
+            const idx = init.headers.findIndex(h => h[0] === "Authorization");
+            if (idx !== -1) init.headers[idx][1] = "Bearer " + token;
+            else init.headers.push(["Authorization", "Bearer " + token]);
+          } else {
+            init.headers["Authorization"] = "Bearer " + token;
+          }
         }
       }
       const response = await originalFetch(input, init);

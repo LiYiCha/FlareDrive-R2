@@ -1,4 +1,6 @@
 import { S3Client } from "@/utils/s3";
+import { get_allow_list } from "@/utils/auth";
+
 
 async function getCurrentBucket(context) {
   const { request, env } = context;
@@ -40,6 +42,11 @@ async function getCurrentBucket(context) {
 }
 
 export async function onRequestGet(context) {
+  const allowList = await get_allow_list(context);
+  if (!allowList || !allowList.includes("*")) {
+    return new Response("没有操作权限", { status: 401 });
+  }
+
   try {
     const { request, env } = context;
 

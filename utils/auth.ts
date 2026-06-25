@@ -34,7 +34,8 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
     // 1. 优先尝试 Bearer JWT Token 验证
     if (authorization.startsWith("Bearer ")) {
       const token = authorization.substring(7).trim();
-      const secret = env.JWT_SECRET || "default_jwt_secret_key_123456";
+      const secret = env.JWT_SECRET;
+      if (!secret) return null;
       const payload = await verifyJWT(token, secret);
       if (payload && payload.username) {
         const username = payload.username;
@@ -85,7 +86,20 @@ export async function get_allow_list(context: any): Promise<string[] | null> {
 
 export async function get_auth_status(context: any): Promise<boolean> {
   const url = new URL(context.request.url);
-  const dopath = url.pathname.split("/api/write/items/")[1];
-  if (!dopath) return false;
-  return can_access_path(context, dopath);
+  if (url.pathname.startsWith("/api/write/items/")) {
+    const dopath = url.pathname.split("/api/write/items/")[1];
+    if (!dopath) return false;
+    return can_access_path(context, dopath);
+  } else if (url.pathname.startsWith("/api/write/s3/")) {
+    const pathSegments = context.params.path || [];
+    if (pathSegments.length <= 1) {
+      // 存储桶级操作（如列出桶内文件、删除桶等），仅限管理员 (*)
+      const allowList = await get_allow_list(context);
+      return !!(allowList && allowList.includes("*"));
+    }
+    // S3 client 拼接的文件路径格式为: bucket_name/key
+    const key = pathSegments.slice(1).join("/");
+    return can_access_path(context, key);
+  }
+  return false;
 }
