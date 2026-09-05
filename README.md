@@ -76,6 +76,20 @@ BUCKET
 
 并选择你的 R2 存储桶。
 
+#### （可选）绑定 KV 开启防爆破限流
+
+代码内置了登录频率防护（连续输错 5 次密码自动限制该 IP 15 分钟）：
+
+1. 在 Cloudflare 控制台进入 **Storage & Databases → KV**，新建一个命名空间（如 `flaredrive-kv`）；
+2. 回到 Pages 项目设置中的 **Functions → KV namespace bindings**；
+3. 添加绑定，变量名填写为：
+
+```
+KV
+```
+
+并选择刚才创建的 KV 命名空间。（若不绑定，该安全限制自动跳过，不影响正常使用）。
+
 ### 5. 重新部署项目
 
 完成所有设置后，回到 Pages 控制台，点击「Deployments」页面右上角的「Trigger Redeploy」以重新部署服务。
