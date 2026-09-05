@@ -211,9 +211,6 @@
           <input type="password" v-model="loginPassword" placeholder="密码" @keyup.enter="handleLogin" />
         </div>
         
-        <!-- Turnstile 容器 -->
-        <div v-show="turnstileSiteKey" id="turnstile-container" class="turnstile-box"></div>
-
         <div class="login-options">
           <label class="remember-label">
             <input type="checkbox" v-model="rememberMe" /> 记住密码
@@ -453,10 +450,8 @@ export default {
     showForgotTips: false,
     loginUsername: "",
     loginPassword: "",
-    turnstileToken: "",
     isLoggedIn: false,
     rememberMe: true,
-    turnstileSiteKey: null,
     storageStats: null,
     showAdminPanel: false,
     activeTab: "storage",
@@ -785,6 +780,7 @@ export default {
       }
     },
 
+
     async getAllItems(prefix) {
       const items = [];
       let marker = null;
@@ -820,26 +816,9 @@ export default {
       setTimeout(() => this.processUploadQueue());
     },
 
-    // 新增：安全与后台管理相关方法
     fetchSystemConfig() {
       axios.get("/api/config")
-        .then(res => {
-          this.turnstileSiteKey = res.data.turnstileSiteKey;
-          if (this.turnstileSiteKey) {
-            this.loadTurnstileScript();
-          }
-        })
         .catch(err => console.error("读取系统配置失败:", err));
-    },
-
-    loadTurnstileScript() {
-      if (document.getElementById("turnstile-script")) return;
-      const script = document.createElement("script");
-      script.id = "turnstile-script";
-      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
     },
 
     fetchStorageStats() {
@@ -866,23 +845,13 @@ export default {
 
     handleLogin() {
       if (!this.loginUsername || !this.loginPassword) {
-        alert("请选输入账号和密码");
+        alert("请输入账号和密码");
         return;
-      }
-
-      let token = "";
-      if (this.turnstileSiteKey && window.turnstile) {
-        token = window.turnstile.getResponse();
-        if (!token) {
-          alert("请先完成验证码校验");
-          return;
-        }
       }
 
       axios.post("/api/login", {
         username: this.loginUsername,
-        password: this.loginPassword,
-        turnstileToken: token
+        password: this.loginPassword
       })
       .then(res => {
         const token = res.data.token;
@@ -900,9 +869,6 @@ export default {
       })
       .catch(err => {
         alert("登录失败：" + (err.response?.data?.error || err.message));
-        if (this.turnstileSiteKey && window.turnstile) {
-          window.turnstile.reset();
-        }
       });
     },
 
@@ -1035,22 +1001,6 @@ export default {
             :`${this.cwd.replace(/.*\/(?!$)|\//g, "") || "/" } - 优雅的 Cloudflare R2 网盘文件库`;
       },
       immediate: true,
-    },
-
-    // 监控登录弹窗以异步渲染 Turnstile 人机校验
-    showLogin(val) {
-      if (val && this.turnstileSiteKey) {
-        setTimeout(() => {
-          if (window.turnstile && document.getElementById("turnstile-container")) {
-            window.turnstile.render("#turnstile-container", {
-              sitekey: this.turnstileSiteKey,
-              callback: (token) => {
-                this.turnstileToken = token;
-              }
-            });
-          }
-        }, 100);
-      }
     }
   },
 
@@ -1285,11 +1235,6 @@ export default {
   border: 1px solid #ddd;
   border-radius: 6px;
   box-sizing: border-box;
-}
-.turnstile-box {
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: center;
 }
 .login-options {
   display: flex;

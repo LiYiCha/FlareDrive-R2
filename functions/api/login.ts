@@ -29,7 +29,7 @@ export async function onRequestPost(context: any) {
     });
   }
 
-  const { username, password, turnstileToken } = body;
+  const { username, password } = body;
   if (!username || !password) {
     return new Response(JSON.stringify({ error: "用户名和密码不能为空" }), {
       status: 400,
@@ -37,35 +37,6 @@ export async function onRequestPost(context: any) {
     });
   }
 
-  // 2. Cloudflare Turnstile 人机校验 (如果配置了密钥)
-  if (env.TURNSTILE_SECRET_KEY) {
-    if (!turnstileToken) {
-      return new Response(JSON.stringify({ error: "人机验证令牌缺失" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const verifyResponse = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v/siteverify",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          secret: env.TURNSTILE_SECRET_KEY,
-          response: turnstileToken,
-          remoteip: clientIP,
-        }),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-    const outcome: any = await verifyResponse.json();
-    if (!outcome.success) {
-      return new Response(JSON.stringify({ error: "人机校验失败，请重试" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-  }
 
   // 3. 验证身份凭证
   let isAuthenticated = false;

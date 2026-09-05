@@ -48,8 +48,7 @@ export async function onRequestGet(context: any) {
     return new Response("Storage Bucket Not Configured", { status: 500 });
   }
 
-  const { env } = context;
-  const quotaBytes = env.QUOTA_BYTES ? parseInt(env.QUOTA_BYTES, 10) : DEFAULT_QUOTA;
+  const quotaBytes = DEFAULT_QUOTA;
 
   try {
     const metadataObj = await bucket.get(METADATA_PATH);

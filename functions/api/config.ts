@@ -1,10 +1,9 @@
 export async function onRequestGet(context: any) {
   const { env } = context;
-  
+
   return new Response(JSON.stringify({
-    turnstileSiteKey: env.TURNSTILE_SITE_KEY || null,
     guestEnabled: !!env.GUEST,
-    quotaBytes: env.QUOTA_BYTES ? parseInt(env.QUOTA_BYTES, 10) : 10 * 1024 * 1024 * 1024
+    quotaBytes: 10 * 1024 * 1024 * 1024
   }), {
     status: 200,
     headers: {

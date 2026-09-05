@@ -57,9 +57,6 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 | `JWT_SECRET`   | `your_random_secret_token_12345`                      | ✅ 必填   | 登录 Token 签名密钥（必需，否则后台登录报错） |
 | `GUEST`        | `public/`                                             | ❌ 可选   | 游客写入的默认目录                             |
 | `user1:123456` | `user1/,shared/`                                      | ❌ 可选   | 普通用户及其可写入目录，支持多个目录，格式一致 |
-| `QUOTA_BYTES`  | `10737418240`                                         | ❌ 可选   | 网盘存储配额（默认 10GB，单位字节；留空即用默认） |
-| `TURNSTILE_SITE_KEY` | `0x4AAAAAA...`                                  | ❌ 可选   | Cloudflare Turnstile 登录框人机验证 Site Key   |
-| `TURNSTILE_SECRET_KEY` | `0x4AAAAAA...`                                | ❌ 可选   | Cloudflare Turnstile 登录框人机验证 Secret Key |
 
 <p style="color: red !important; font-weight: bold;">
   ⚠️ 请勿开启 R2 存储桶的公开读写权限！否则你的存储资源可能会被恶意刷爆。
