@@ -285,6 +285,22 @@ class DownloadManagerActivity : Activity() {
         }
         titleBar.addView(btnBack)
 
+        val btnSettings = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_preferences)
+            setBackgroundColor(Color.TRANSPARENT)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            val lp = RelativeLayout.LayoutParams(dpToPx(48), dpToPx(48)).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_RIGHT)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+                rightMargin = dpToPx(8)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                SourceSettingsDialog.show(this@DownloadManagerActivity)
+            }
+        }
+        titleBar.addView(btnSettings)
+
         val txtTitle = TextView(this).apply {
             text = "系统更新与配套应用"
             textSize = 18f

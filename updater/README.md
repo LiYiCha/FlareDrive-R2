@@ -121,58 +121,54 @@ dependencies {
 
 ## 🚀 代码调用指南
 
-### 1. 自动检测更新并弹出对话框（最简集成）
-在您应用的首页 `MainActivity` 或设置页中，构建 `Updater` 并调用检查：
+### 1. 初始化更新器（支持多更新源：Cloudflare R2 + GitHub Releases）
+在 Application 或首个 Activity 中配置更新源并构建单例 `Updater`：
 
 ```kotlin
 import com.updater.Updater
 
-class MainActivity : Activity() {
+// 初始化更新模块
+val updater = Updater.Companion.Builder(this)
+    .setAppId("com.example.myapp") // 宿主应用包名
+    // 1. 添加 Cloudflare Pages R2 节点 (作为默认生效源)
+    .addCloudflareSource("Cloudflare 官方源", "https://pan.yourdomain.com", isDefault = true)
+    // 2. 同时添加 GitHub Releases 节点 (作为备用源)
+    .addGitHubSource("GitHub 官方源", "https://github.com/LiYiCha/Sesame-TK")
+    // 可选：设置专属下载 CDN 加速域名
+    .setDownloadHost("https://download.yourdomain.com")
+    .build()
+```
+
+### 2. 检查更新调用方式
+
+#### 方式 A：App 启动时静默检查 (`checkUpdateOnStartup`)
+仅在用户主动开启了「启动时自动检查更新」开关时才会触发检测。静默无感知，仅在有新版本时弹出更新对话框：
+```kotlin
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
     
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // 初始化更新模块
-        val updater = Updater.Companion.Builder(this)
-            .setBaseHost("https://pan.yourdomain.com") // 部署的 Cloudflare Pages 地址 (必填)
-            .setAppId("com.example.myapp") // 必须与发布管理后台填写的 App ID 一致，默认取 packageName
-            // 可选：设置独立的自定义下载域名（若配置，客户端下载 APK 时将自动以此域名作为下载 Host，实现加速或分流）
-            .setDownloadHost("https://download.yourdomain.com") 
-            .build()
-
-        // 异步检查更新，若有新版则自动弹出对话框
-        // 传入当前 Activity 上下文以展示弹窗
-        updater.checkAndShowUpdateDialog(this)
-    }
+    // 启动时自动检查（根据用户设置自动判断，默认关闭）
+    updater.checkUpdateOnStartup(this)
 }
 ```
 
-### 2. 自定义检查更新流程（高度自定义）
-如果您想自己绘制更新提示 UI，或者在没有新版本时给用户“已是最新版”的提示，可以采用回调方式：
-
+#### 方式 B：用户手动点击「检查更新」按钮 (`checkUpdateManual`)
+推荐放在 App 的「关于」或「设置」页面中，点击时提供明确反馈（“正在检查...”、“当前已是最新版本”或弹出更新对话框）：
 ```kotlin
-updater.checkUpdate(
-    onUpdateAvailable = { updateInfo ->
-        // 发现新版本：可以获取版本号、日志等信息
-        val latestVer = updateInfo.latestVersionName
-        val log = updateInfo.updateLog
-        val isForce = updateInfo.isForceUpdate // 是否强更
-        
-        // 弹出您的自定义 Dialog
-        // 如果想在这里跳转到配套下载中心界面，只需调用：
-        updater.openDownloadCenter(this, updateInfo)
-    },
-    onNoUpdate = {
-        // 当前已是最新版本
-        Toast.makeText(this, "当前已是最新版本！", Toast.LENGTH_SHORT).show()
-    },
-    onError = { errorMsg ->
-        // 检测失败（网络错误、解析错误等）
-        Toast.makeText(this, "更新检查失败: $errorMsg", Toast.LENGTH_SHORT).show()
-    }
-)
+btnCheckUpdate.setOnClickListener {
+    updater.checkUpdateManual(this)
+}
 ```
+
+### 3. 打开更新源与模式设置弹窗 (`openSourceSettingsDialog`)
+用户可在界面中自由切换生效的更新源（单选并自动持久化记忆）、开启/关闭启动自动检查更新开关，以及添加自定义更新源 URL：
+```kotlin
+btnSettings.setOnClickListener {
+    updater.openSourceSettingsDialog(this)
+}
+```
+
+*(注：下载中心界面 `DownloadManagerActivity` 顶部右上角也已内置了该设置入口)*
 
 ---
 
