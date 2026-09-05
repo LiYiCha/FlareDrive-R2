@@ -67,37 +67,14 @@ export async function onRequestPost(context: any) {
     }
   }
 
-  // 3. 密码验证逻辑 (双轨兼容: ADMIN_PASSWORD_HASH 或 原版 admin 环境变量)
+  // 3. 验证身份凭证
   let isAuthenticated = false;
-  const configuredUser = env.ADMIN_USERNAME || "admin";
 
-  const adminPassword = env.ADMIN_PASSWORD;
-  const adminHash = env.ADMIN_PASSWORD_HASH;
-  if (adminPassword) {
-    // A1. 明文密码模式 (最直观，直接填密码，不会遗忘)
-    if (
-      timingSafeEqual(username, configuredUser) &&
-      timingSafeEqual(password, adminPassword)
-    ) {
-      isAuthenticated = true;
-    }
-  } else if (adminHash) {
-    // A2. 哈希匹配模式 (高级安全模式)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashHex = Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    if (
-      timingSafeEqual(username, configuredUser) &&
-      timingSafeEqual(hashHex, adminHash)
-    ) {
-      isAuthenticated = true;
-    }
+  if (typeof env[`${username}:${password}`] === "string") {
+    // 环境变量中存在 "用户名:密码" 的授权项 (如 admin:123456)
+    isAuthenticated = true;
   } else if (env.admin) {
-    // B. 兼容原版 admin 变量明文模式 (例如 admin=username:password)
+    // 兼容 admin=username:password 模式
     try {
       const parts = env.admin.split(":");
       if (parts.length === 2) {
@@ -107,11 +84,8 @@ export async function onRequestPost(context: any) {
         }
       }
     } catch (e) {
-      // 解析失败忽略
+      // 忽略解析错误
     }
-  } else if (typeof env[`${username}:${password}`] === "string") {
-    // C. 兼容自定义 allow-list 配置名明文模式 (用户名:密码 作为环境变量)
-    isAuthenticated = true;
   }
 
   if (!isAuthenticated) {

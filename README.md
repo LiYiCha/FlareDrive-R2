@@ -53,16 +53,10 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 | 变量名         | 示例值                                                | 是否必要 | 说明                                           |
 | -------------- | ----------------------------------------------------- | -------- | ---------------------------------------------- |
 | `PUBURL`       | `https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev` | ✅ 必填   | R2 公共存储桶地址（支持 r2.dev 或 R2 自定义域） |
-| `admin:123456` | `*`                                                   | ✅ 必填   | 管理员账号，格式为 `用户名:密码`               |
+| `admin:123456` | `*`                                                   | ✅ 必填   | 管理员账号密码与权限，格式为 `用户名:密码`，值为 `*` |
 | `JWT_SECRET`   | `your_random_secret_token_12345`                      | ✅ 必填   | 登录 Token 签名密钥（必需，否则后台登录报错） |
 | `GUEST`        | `public/`                                             | ❌ 可选   | 游客写入的默认目录                             |
 | `user1:123456` | `user1/,shared/`                                      | ❌ 可选   | 普通用户及其可写入目录，支持多个目录，格式一致 |
-| `ADMIN_USERNAME` | `admin`                                             | ❌ 可选   | 管理员用户名（默认即为 admin）                  |
-| `ADMIN_PASSWORD` | `123456`                                              | ❌ 可选   | 管理员密码（直接填明文密码，直观绝不遗忘）     |
-| `ADMIN_PASSWORD_HASH` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | ❌ 可选 | 管理员密码 SHA-256 哈希值（与上方密码二选一）   |
-| `QUOTA_BYTES`  | `10737418240`                                         | ❌ 可选   | 网盘存储配额（默认 10GB，单位字节）            |
-| `TURNSTILE_SITE_KEY` | `0x4AAAAAA...`                                  | ❌ 可选   | Cloudflare Turnstile 人机验证 Site Key         |
-| `TURNSTILE_SECRET_KEY` | `0x4AAAAAA...`                                | ❌ 可选   | Cloudflare Turnstile 人机验证 Secret Key       |
 
 <p style="color: red !important; font-weight: bold;">
   ⚠️ 请勿开启 R2 存储桶的公开读写权限！否则你的存储资源可能会被恶意刷爆。
