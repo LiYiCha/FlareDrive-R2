@@ -71,9 +71,18 @@ export async function onRequestPost(context: any) {
   let isAuthenticated = false;
   const configuredUser = env.ADMIN_USERNAME || "admin";
 
+  const adminPassword = env.ADMIN_PASSWORD;
   const adminHash = env.ADMIN_PASSWORD_HASH;
-  if (adminHash) {
-    // A. 哈希匹配模式
+  if (adminPassword) {
+    // A1. 明文密码模式 (最直观，直接填密码，不会遗忘)
+    if (
+      timingSafeEqual(username, configuredUser) &&
+      timingSafeEqual(password, adminPassword)
+    ) {
+      isAuthenticated = true;
+    }
+  } else if (adminHash) {
+    // A2. 哈希匹配模式 (高级安全模式)
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
