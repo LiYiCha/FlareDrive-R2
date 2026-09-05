@@ -38,8 +38,12 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
       if (!secret) return null;
       const payload = await verifyJWT(token, secret);
       if (payload && payload.username) {
+        // 如果 Token 中已签发权限，直接使用
+        if (payload.allowList) {
+          return parseAllowList(payload.allowList);
+        }
+
         const username = payload.username;
-        // 提取该账号对应的目录权限：直接读取环境变量中该账号配置的值 (例如 admin_123456 的值为 *)
         let allowConfig: string | undefined = env[username];
         if (!allowConfig) {
           for (const key of Object.keys(env)) {
@@ -54,7 +58,6 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
           return parseAllowList(allowConfig);
         }
 
-        // 若未匹配到独立配置，对默认 admin 账号兜底授予全部权限
         if (username === "admin") {
           return ["*"];
         }

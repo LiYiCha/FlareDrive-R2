@@ -38,15 +38,16 @@ export async function onRequestPost(context: any) {
   }
 
 
-  // 3. 验证身份凭证
+  // 3. 验证身份凭证并提取对应权限
   let isAuthenticated = false;
+  let userAllowList = "";
 
-  if (
-    typeof env[`${username}_${password}`] === "string" ||
-    typeof env[`${username}:${password}`] === "string"
-  ) {
-    // 环境变量中存在 "用户名_密码" 或 "用户名:密码" 的授权项
+  if (typeof env[`${username}_${password}`] === "string") {
     isAuthenticated = true;
+    userAllowList = env[`${username}_${password}`];
+  } else if (typeof env[`${username}:${password}`] === "string") {
+    isAuthenticated = true;
+    userAllowList = env[`${username}:${password}`];
   } else if (env.admin) {
     // 兼容 admin=username:password 模式
     try {
@@ -55,6 +56,7 @@ export async function onRequestPost(context: any) {
         const [u, p] = parts;
         if (timingSafeEqual(username, u) && timingSafeEqual(password, p)) {
           isAuthenticated = true;
+          userAllowList = "*";
         }
       }
     } catch (e) {
@@ -91,7 +93,7 @@ export async function onRequestPost(context: any) {
       headers: { "Content-Type": "application/json" }
     });
   }
-  const token = await signJWT({ username }, jwtSecret);
+  const token = await signJWT({ username, allowList: userAllowList }, jwtSecret);
 
   return new Response(JSON.stringify({ token }), {
     status: 200,
