@@ -7,10 +7,8 @@ FlareDrive-R2 是基于 Cloudflare R2 + Workers 构建的在线网盘系统，�
 - 多用户权限管理
 - 目录级访问控制
 - 静态文件托管
-- **新增：App 版本多包发布及更新管理后台**
-- **新增：配套本地 Android 端更新库模块**
 
-> 📌 本项目修改自 [Cloudflare-R2-oss](https://github.com/willow-god/FlareDrive-R2)，实现了一些特征功能。
+> 📌 本项目修改自 [Cloudflare-R2-oss](https://github.com/ljxi/Cloudflare-R2-oss)，实现了更加美观的前端页面，本人并不擅长`CF Worker`开发，所以如果有功能方面的需求，请在上游仓库提出。
 
 ### 🚀 快速部署
 
@@ -27,151 +25,154 @@ FlareDrive-R2 是基于 Cloudflare R2 + Workers 构建的在线网盘系统，�
 
 1. 新建存储桶（建议名称全小写）
 
-   ![create-bucket](docs/create-bucket.png)
+   ![QQ_1744351903148](docs/create-bucket.png)
 
 2. 创建完成后，点开设置页面，在存储桶设置中启用「公开访问」
 
-   ![r2.dev](docs/r2.dev.png)
+   ![QQ_1744352059947](docs/r2.dev.png)
 
 3. 复制“公共存储桶 URL”，格式如下：
 
-   ```txt
-   https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
-   ```
+```txt
+https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
+```
 
-### 2. 部署到 Cloudflare Pages
+### 2. 部署 Pages 服务
 
-> 💡 **为什么是 Pages 而不是 Worker？**  
-> 本项目是 **Pages Full-Stack (Jamstack + Functions)** 架构：静态前端（HTML/Vue/CSS）与后端 API（`functions/` 目录云函数）深度整合。Cloudflare Pages 会自动分发静态文件到全球 CDN 并编译后端 API 路由。若部署为纯 Worker，将无法直接托管前端网页。
-
-1. **推送代码到 GitHub**：将本项目推送到你个人的 GitHub 仓库（公开或私有均可）。
-2. **连接 GitHub 到 Cloudflare**：
-   - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
-   - 点击左侧导航栏 **Workers 和 Pages (Workers & Pages)** -> **创建 (Create application)** -> 选择 **Pages** 选项卡。
-   - 点击 **连接到 Git (Connect to Git)**，授权并选中你的 GitHub 仓库。
-3. **构建设置（Build Settings）**：
-   - **Framework preset (框架预设)**：选择 `None`（无）
-   - **Build command (构建命令)**：**完全留空，不需要填任何命令**
-   - **Build output directory (构建输出目录)**：填 `/` 或 `.`（即当前仓库根目录）
-   - 点击 **保存并部署 (Save and Deploy)**。
+1. Fork 本项目仓库到你的 GitHub
+2. 打开 Cloudflare Pages，新建一个站点
+3. 点击「连接到 Git」并选择你的仓库
+4. 保持默认的构建设置即可，第一次构建不会显示内容，为正常现象
 
 ### 3. 配置环境变量
 
-进入已创建的 Pages 项目 -> **设置 (Settings)** -> **环境变量 (Environment variables)**，添加以下变量：
+![QQ_1744352357624](docs/secret.png)
 
-| 变量名 | 示例值 | 是否必要 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `GUEST` | `*` 或 `apks,public` | ⚠️ **更新必备** | **访客公开读取白名单**。若提供安卓端免登更新下载，必须设为 `*` 或包含你的 APK 目录（如 `apks`），否则安卓下载会报 401 权限不足！ |
-| `PUBURL` | `https://pub-xxx.r2.dev` | ❌ 可选 | R2 公共存储桶直链或自定义下载域名。未配置时系统会自动回退直连 R2 存储桶并支持 Range 断点续传 |
-| `ADMIN_USERNAME` | `admin` | ✅ 推荐 | 新版管理员账号（默认 `admin`） |
-| `ADMIN_PASSWORD_HASH` | `8d969eef6ecad...` | ✅ 推荐 | 新版管理员密码的 **SHA-256 哈希值**（如明文 123456 的哈希） |
-| `JWT_SECRET` | `your_secret_32_chars` | ✅ 必要 | JWT Token 签名密钥，长度建议不少于 32 位 |
-| `QUOTA_BYTES` | `10737418240` | ❌ 可选 | 网盘总配额容量（字节，默认 10GB） |
-| `TURNSTILE_SITE_KEY` | `0x4AAAAAA...` | ❌ 可选 | Cloudflare Turnstile 验证码 Site Key（开启人机校验） |
-| `TURNSTILE_SECRET_KEY`| `0x4AAAAAA...` | ❌ 可选 | Cloudflare Turnstile 验证码 Secret Key |
+在 Cloudflare Pages 项目中，进入 **Settings → Environment Variables** 添加以下变量：
+
+| 变量名         | 示例值                                                | 是否必要 | 说明                                           |
+| -------------- | ----------------------------------------------------- | -------- | ---------------------------------------------- |
+| `PUBURL`       | `https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev` | ✅ 必填   | R2 公共存储桶地址                              |
+| `admin:123456` | `*`                                                   | ✅ 必填   | 管理员账号，格式为 `用户名:密码`               |
+| `GUEST`        | `public/`                                             | ❌ 可选   | 游客写入的默认目录                             |
+| `user1:123456` | `user1/,shared/`                                      | ❌ 可选   | 普通用户及其可写入目录，支持多个目录，格式一致 |
+
+<p style="color: red !important; font-weight: bold;">
+  ⚠️ 请勿开启 R2 存储桶的公开读写权限！否则你的存储资源可能会被恶意刷爆。
+</p>
 
 ### 4. 绑定 R2 存储桶
 
-进入 Pages 项目设置：
-1. 点击 **设置 (Settings)** -> **函数 (Functions)**。
-2. 找到 **R2 存储桶绑定 (R2 bucket bindings)**，点击 **添加绑定 (Add binding)**。
-3. **变量名称 (Variable name)** 严格填写为：
-   ```txt
-   BUCKET
-   ```
-4. **R2 存储桶** 下拉选中你第 1 步创建好的存储桶。
+部署完成后：
 
-### 5. 绑定自定义域名（强烈推荐，国内访问极速）
+1. 进入 Cloudflare Pages 项目设置
+2. 点击「R2 存储桶」
+3. 添加一个绑定，变量名填写为：
 
-> ⚠️ **强烈提醒**：Cloudflare 默认分配的 `*.pages.dev` 与 `*.r2.dev` 域名在国内部分地区和运营商存在 SNI 阻断与连接限制。强烈建议绑定自己的域名！
+```
+BUCKET
+```
 
-1. 进入 Pages 项目页面，点击 **自定义域 (Custom domains)** 选项卡。
-2. 点击 **设置自定义域 (Set up a custom domain)**，输入你的二级域名（例如 `pan.yourdomain.com`）。
-3. Cloudflare 会自动完成 DNS 记录添加并自动配置终身免费的 SSL/HTTPS 证书。
-4. 在安卓端初始化 Updater 时，直接将 `baseHost` 传入此自定义域名即可享受极速 CDN 下载体验！
+并选择你的 R2 存储桶。
 
-### 6. 重新部署生效
+### 5. 重新部署项目
 
-完成环境变量配置和 R2 绑定后：进入 Pages 控制台中的 **Deployments** 页面，在最近一次构建记录右侧点击 `...` -> **重试部署 (Retry deployment)**，即可让所有配置立即生效。
-
----
-
-### 💻 本地模拟与测试开发
-
-如果您想在本地运行项目进行功能测试或二次开发，请按照以下步骤操作：
-
-1. **安装依赖**：
-   确保本地安装了 Node.js 环境，在项目根目录下执行安装依赖：
-   ```bash
-   npm install
-   ```
-
-2. **配置本地开发环境变量**：
-   在项目根目录下新建一个名为 `.dev.vars` 的文件，写入您的本地测试环境变量（Wrangler 本地运行时会自动加载此文件）：
-   ```txt
-   PUBURL=http://localhost:8788
-   ADMIN_USERNAME=admin
-   ADMIN_PASSWORD_HASH=8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92
-   JWT_SECRET=local_jwt_secret_key_1234567890
-   ```
-   > 📌 上述哈希密码对应明文 `123456`。
-
-3. **启动本地开发服务器**：
-   在根目录下运行以下命令：
-   ```bash
-   npm run dev
-   ```
-   该命令会自动启动 `wrangler pages dev`，在本地 `http://localhost:8788` 模拟 Pages 环境，并自动在本地绑定名为 `BUCKET` 的本地模拟 R2 存储桶。
-
-4. **进行测试**：
-   * 打开浏览器访问 `http://localhost:8788` 即可调试 Vue 网页控制台。
-   * 管理员登录，上传 APK，在应用更新面板发布更新，提取 MD5 进行测试。
-   * 安卓端调用更新时，若使用安卓模拟器测试，可以将 Host 设为 `.setBaseHost("http://10.0.2.2:8788")`（在安卓模拟器中指向开发主机的 `localhost:8788`）即可直接进行真机/模拟器本地联调测试。
-
----
-
-### 📱 安卓端更新模块集成 (`:updater`)
-
-项目附带了一个独立的 Kotlin 安卓库模块 `:updater`。
-
-1. **引入模块**：在您 Android 项目的 `settings.gradle` 中加入：
-   ```gradle
-   include ':updater'
-   ```
-2. **添加依赖**：在您宿主 App 的 `build.gradle` 中加入：
-   ```gradle
-   implementation project(':updater')
-   ```
-3. **调用更新**：
-   ```kotlin
-   com.updater.Updater.Builder(context)
-       .setBaseHost("https://your-flaredrive-domain.com") // 您的网盘公开域名
-       .setAppId("your.package.name") // 宿主 App 包名
-       .build()
-       .checkAndShowUpdateDialog(this)
-   ```
-
----
+完成所有设置后，回到 Pages 控制台，点击「Deployments」页面右上角的「Trigger Redeploy」以重新部署服务。
 
 ### ⚙️ 自定义配置
 
 #### 前端样式修改
 
-请直接修改以下文件：
+由于 Wrangler 部署无法使用传统环境变量注入，我偷懒了，不想写环境变量，但是仍然可以简单的进行修改，请直接修改以下文件：
 
 1. **背景图片**  
    修改文件：`assets/App.vue`  
+   
    ```vue
-   backgroundImageUrl: "/assets/bg-light.webp"
+   // 约第 213 行
+   export default {
+     data: () => ({
+       ...
+       backgroundImageUrl: "/assets/bg-light.webp"
+     }),
+   }
    ```
    
 2. **页脚链接**  
    修改文件：`assets/Footer.vue`  
+   
    ```html
-   homeUrl: "https://www.liushen.fun/",
-   blogUrl: "https://blog.liushen.fun/"
+   // 约第四十行
+   <script>
+   export default {
+     name: "Footer",
+     data() {
+       return {
+         homeUrl: "https://www.liushen.fun/",
+         blogUrl: "https://blog.liushen.fun/",
+         githubUrl: "https://github.com/willow-god",
+         emailUrl: "mailto:01@liushen.fun"
+       };
+     }
+   };
+   </script>
    ```
 
+#### 权限配置技巧
+
+- 使用 `*` 作为值表示拥有所有目录权限
+- 目录名必须以 `/` 结尾
+- 避免在值的前后添加多余逗号（如 `,dir1/,` 会错误授予全部权限）
+
+### 🔧 故障排查
+
+1. 文件上传失败：
+   - 检查 R2 存储桶是否已绑定
+   - 确认用户有目标目录的写入权限
+
+2. 样式未更新：
+   - 清除浏览器缓存
+   - 确认修改已提交并重新部署
+
 ---
+
+### 🌐 域名配置与绑定指南（重要）
+
+1. **网盘前端与管理后台域名（Pages 自定义域）**：
+   - 在 Cloudflare Pages 项目的 **Custom domains (自定义域)** 中绑定你的访问域名（如 `cicha.de5.net`）。
+   - 绑定后，浏览器直接打开 `https://cicha.de5.net` 即可访问网盘完整功能。
+
+2. **R2 存储桶直链域名（PUBURL 配置）**：
+   - ⚠️ **切勿将同一个域名（如 `cicha.de5.net`）同时绑定到 R2 存储桶**，否则会导致 DNS 解析冲突覆盖 Pages 服务！
+   - 如果需要为 R2 开启独立的直链加速域名，请分配一个**不同的子域名**（例如 `r2.de5.net` 或 `file.de5.net`）绑定到 R2 存储桶的「自定义域」中；
+   - 此时在 Pages 环境变量中将 `PUBURL` 设置为该独立域名（如 `https://r2.de5.net`）；
+   - **简便省心模式**：如果不配置独立的 R2 自定义域名，可直接使用 R2 生成的公共开发 URL（`https://pub-xxx.r2.dev`）填入 `PUBURL`，系统已内置断点续传与 CDN 加速回退。
+
+---
+
+### 📱 安卓端版本更新模块集成 (`:updater`)
+
+本项目附带了原生 Android 更新模块，支持多源配置（Cloudflare R2 + GitHub Releases）与启动/点击更新模式记忆。
+
+1. **在网盘中发布新版本**：
+   - 管理员登录网盘后台，上传 APK 文件至允许公开访问的目录（如 `public/`）；
+   - 进入后台「应用更新管理」面板，输入版本信息并选择该 APK，点击发布即可全球生效。
+
+2. **Android 客户端调用**：
+   ```kotlin
+   val updater = com.updater.Updater.Companion.Builder(context)
+       .setAppId("your.package.name")
+       // 优先使用 Cloudflare Pages 网盘源
+       .addCloudflareSource("官方节点", "https://cicha.de5.net", isDefault = true)
+       // 备用 GitHub Releases 源
+       .addGitHubSource("GitHub 节点", "https://github.com/LiYiCha/Sesame-TK")
+       .build()
+
+   // 启动时静默检查（根据用户设置自动判断，默认关闭）：
+   updater.checkUpdateOnStartup(this)
+
+   // 用户手动点击检查更新：
+   updater.checkUpdateManual(this)
+   ```
 
 
