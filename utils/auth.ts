@@ -39,24 +39,24 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
       const payload = await verifyJWT(token, secret);
       if (payload && payload.username) {
         const username = payload.username;
-        // 如果是管理员账号，读取其环境变量配置，若无则默认拥有全部权限 (*)
-        const adminUser = env.ADMIN_USERNAME || "admin";
-        if (username === adminUser) {
-          const customAllowList = env[username] || env["ADMIN_ALLOW_LIST"];
-          return customAllowList ? parseAllowList(customAllowList) : ["*"];
-        }
-        // 普通用户的 allow-list: 优先读取 env[username]，若无则查找 env[username_xxx] 或 env[username:xxx]
-        let userAllowList: string | undefined = env[username];
-        if (!userAllowList) {
+        // 提取该账号对应的目录权限：直接读取环境变量中该账号配置的值 (例如 admin_123456 的值为 *)
+        let allowConfig: string | undefined = env[username];
+        if (!allowConfig) {
           for (const key of Object.keys(env)) {
             if (key.startsWith(`${username}_`) || key.startsWith(`${username}:`)) {
-              userAllowList = env[key];
+              allowConfig = env[key];
               break;
             }
           }
         }
-        if (userAllowList) {
-          return parseAllowList(userAllowList);
+
+        if (allowConfig) {
+          return parseAllowList(allowConfig);
+        }
+
+        // 若未匹配到独立配置，对默认 admin 账号兜底授予全部权限
+        if (username === "admin") {
+          return ["*"];
         }
       }
     }
