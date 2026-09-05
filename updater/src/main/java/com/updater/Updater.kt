@@ -18,7 +18,8 @@ import java.io.IOException
 class Updater private constructor(
     private val context: Context,
     private val appId: String,
-    private val baseHost: String
+    private val baseHost: String,
+    private val downloadHost: String? = null
 ) {
 
     private val client = OkHttpClient()
@@ -28,15 +29,23 @@ class Updater private constructor(
         class Builder(private val context: Context) {
             private var appId: String = context.packageName
             private var baseHost: String = ""
+            private var downloadHost: String? = null
 
             fun setAppId(appId: String) = apply { this.appId = appId }
             fun setBaseHost(baseHost: String) = apply { this.baseHost = baseHost }
+            
+            /**
+             * 设置自定义下载域名（如加速 CDN 域名、自建反代域名或 R2 独立下载域名）
+             * 若配置，客户端下载 APK 时将自动强制以此域名作为下载 Host
+             */
+            fun setDownloadHost(downloadHost: String) = apply { this.downloadHost = downloadHost }
+            fun setCustomDomain(customDomain: String) = apply { this.downloadHost = customDomain }
 
             fun build(): Updater {
                 if (baseHost.isEmpty()) {
                     throw IllegalStateException("Base host must be set (e.g., https://yourdomain.com)")
                 }
-                return Updater(context.applicationContext, appId, baseHost)
+                return Updater(context.applicationContext, appId, baseHost, downloadHost)
             }
         }
     }
@@ -85,25 +94,48 @@ class Updater private constructor(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                onError(e.message ?: "网络连接失败")
+                handler.post {
+                    onError(e.message ?: "网络连接失败")
+                }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val bodyStr = response.body?.string()
                 if (!response.isSuccessful || bodyStr == null) {
-                    onError("HTTP ${response.code}")
+                    handler.post {
+                        onError("HTTP ${response.code}")
+                    }
                     return
                 }
 
                 try {
                     val json = JSONObject(bodyStr)
+                    
+                    // 1. 服务端明确返回无更新
+                    if (json.has("hasUpdate") && !json.optBoolean("hasUpdate", true)) {
+                        handler.post { onNoUpdate() }
+                        return
+                    }
+
+                    // 2. 服务端返回错误信息
+                    if (json.has("error")) {
+                        val errMsg = json.optString("error")
+                        handler.post { onError(errMsg) }
+                        return
+                    }
+
                     val appIdVal = json.optString("appId")
                     val appName = json.optString("appName")
-                    val latestVersionCode = json.optInt("latestVersionCode")
+                    val latestVersionCode = json.optInt("latestVersionCode", 0)
                     val latestVersionName = json.optString("latestVersionName")
                     val updateLog = json.optString("updateLog")
                     val isForceUpdate = json.optBoolean("isForceUpdate")
                     val lastUpdated = json.optLong("lastUpdated")
+
+                    if (appIdVal.isEmpty() || latestVersionCode <= 0) {
+                        handler.post { onNoUpdate() }
+                        return
+                    }
                     
                     val packagesList = ArrayList<UpdatePackage>()
                     val packagesArray = json.optJSONArray("packages")
@@ -140,9 +172,7 @@ class Updater private constructor(
                         onUpdateAvailable(updateInfo)
                     }
                 } catch (e: Exception) {
-                    if (bodyStr.contains("hasUpdate") && bodyStr.contains("false")) {
-                        handler.post { onNoUpdate() }
-                    } else {
+                    handler.post {
                         onError("数据解析错误: ${e.message}")
                     }
                 }
@@ -182,6 +212,9 @@ class Updater private constructor(
         val intent = Intent(context, DownloadManagerActivity::class.java).apply {
             putExtra("update_info", updateInfo)
             putExtra("base_host", baseHost)
+            if (!downloadHost.isNullOrEmpty()) {
+                putExtra("download_host", downloadHost)
+            }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)

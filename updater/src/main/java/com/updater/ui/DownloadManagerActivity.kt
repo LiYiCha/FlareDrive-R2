@@ -96,7 +96,12 @@ class DownloadManagerActivity : Activity() {
             var task = dbHelper.getTask(taskId)
             if (task == null) {
                 val apkDir = File(getExternalFilesDir(null) ?: filesDir, "apks")
-                val fileName = pkg.downloadUrl.substringAfterLast("/")
+                if (!apkDir.exists()) {
+                    apkDir.mkdirs()
+                }
+                val cleanUrl = pkg.downloadUrl.substringBefore("?")
+                val rawFileName = cleanUrl.substringAfterLast("/").ifEmpty { "app_${pkg.packageId}.apk" }
+                val fileName = if (rawFileName.endsWith(".apk", ignoreCase = true)) rawFileName else "$rawFileName.apk"
                 val saveFile = File(apkDir, fileName)
                 
                 task = DownloadTask(
@@ -150,11 +155,27 @@ class DownloadManagerActivity : Activity() {
             return
         }
 
+        // 1. 防重复点击：若已经在下载中，直接忽略
+        if (task.status == DownloadTask.STATUS_DOWNLOADING) {
+            return
+        }
+
+        // 2. 单例限制：禁止并发下载，检查是否有其他包正在下载
+        val currentDownloading = tasks.values.find { it.status == DownloadTask.STATUS_DOWNLOADING && it.id != taskId }
+        if (currentDownloading != null) {
+            Toast.makeText(this, "已有任务【${currentDownloading.title}】正在下载中，请等待完成或先暂停", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val serviceIntent = Intent(this, ForegroundDownloadService::class.java).apply {
             action = ForegroundDownloadService.ACTION_START
             putExtra("task", task)
         }
-        startService(serviceIntent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
         
         task.status = DownloadTask.STATUS_DOWNLOADING
         updateViewHolder(taskId, task)
@@ -199,13 +220,26 @@ class DownloadManagerActivity : Activity() {
     }
 
     private fun getAbsoluteUrl(relativeUrl: String): String {
-        if (relativeUrl.startsWith("http")) return relativeUrl
-        val baseHost = intent.getStringExtra("base_host") ?: "https://yourdomain.com"
-        return if (baseHost.endsWith("/")) {
-            baseHost + relativeUrl.removePrefix("/")
-        } else {
-            baseHost + "/" + relativeUrl.removePrefix("/")
+        val customDownloadHost = intent.getStringExtra("download_host")
+        if (!customDownloadHost.isNullOrEmpty()) {
+            val host = customDownloadHost.trimEnd('/')
+            val path = if (relativeUrl.startsWith("http://", ignoreCase = true) || relativeUrl.startsWith("https://", ignoreCase = true)) {
+                try {
+                    val uri = java.net.URI(relativeUrl)
+                    uri.rawPath + if (uri.rawQuery != null) "?${uri.rawQuery}" else ""
+                } catch (e: Exception) {
+                    "/" + relativeUrl.substringAfter("://").substringAfter("/", "")
+                }
+            } else {
+                "/" + relativeUrl.removePrefix("/")
+            }
+            return "$host$path"
         }
+
+        if (relativeUrl.startsWith("http", ignoreCase = true)) return relativeUrl
+        val baseHost = intent.getStringExtra("base_host") ?: "https://yourdomain.com"
+        val host = baseHost.trimEnd('/')
+        return "$host/" + relativeUrl.removePrefix("/")
     }
 
     private fun formatSize(size: Long): String {

@@ -34,7 +34,8 @@ class ForegroundDownloadService : Service() {
         private const val NOTIFICATION_ID = 1024
     }
 
-    private val executor = Executors.newFixedThreadPool(2)
+    // 保证单线程单任务顺序执行，避免并发下载
+    private val executor = Executors.newSingleThreadExecutor()
     private val activeCalls = ConcurrentHashMap<String, okhttp3.Call>()
     private val activeTasks = ConcurrentHashMap<String, DownloadTask>()
     private lateinit var dbHelper: DownloadDatabaseHelper
@@ -62,6 +63,8 @@ class ForegroundDownloadService : Service() {
         if (task != null) {
             when (action) {
                 ACTION_START -> {
+                    // 确保前台服务通知立即展示，避免 Android 8+ 前台服务超时异常
+                    showForegroundNotification()
                     startDownloadTask(task)
                 }
                 ACTION_PAUSE -> {
@@ -74,7 +77,11 @@ class ForegroundDownloadService : Service() {
     }
 
     private fun startDownloadTask(task: DownloadTask) {
+        // 1. 防重复点击：若该任务已在运行，直接忽略
         if (activeTasks.containsKey(task.id)) return
+
+        // 2. 单例下载：若已有任务在下载中，不并发下载
+        if (activeTasks.isNotEmpty()) return
 
         activeTasks[task.id] = task
         dbHelper.insertOrUpdateTask(task)

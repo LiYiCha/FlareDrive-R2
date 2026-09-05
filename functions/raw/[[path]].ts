@@ -16,19 +16,44 @@ export async function onRequestGet(context: any) {
   const rawPrefix = "/raw/";
   const index = urlObj.pathname.indexOf(rawPrefix);
   const subPath = index !== -1 ? urlObj.pathname.substring(index + rawPrefix.length) : path;
-  const url = context.env["PUBURL"] + "/" + subPath + urlObj.search;
+  const pubUrl = (context.env["PUBURL"] || "").trim().replace(/\/+$/, "");
+  let response: Response;
 
-  const fetchOptions: RequestInit = {
-    headers: context.request.headers,
-    method: context.request.method,
-    redirect: "follow",
-  };
+  if (pubUrl) {
+    const cleanSubPath = (subPath || "").replace(/^\/+/, "");
+    const url = `${pubUrl}/${cleanSubPath}${urlObj.search}`;
 
-  if (context.request.method !== "GET" && context.request.method !== "HEAD") {
-    fetchOptions.body = context.request.body;
+    const fetchOptions: RequestInit = {
+      headers: context.request.headers,
+      method: context.request.method,
+      redirect: "follow",
+    };
+
+    if (context.request.method !== "GET" && context.request.method !== "HEAD") {
+      fetchOptions.body = context.request.body;
+    }
+
+    response = await fetch(new Request(url, fetchOptions));
+  } else {
+    // 未配置 PUBURL 时直接从 R2 存储桶读取，支持原生 Range 断点续传
+    const cleanSubPath = (subPath || "").replace(/^\/+/, "");
+    const object = await bucket.get(cleanSubPath, {
+      range: context.request.headers,
+      onlyIf: context.request.headers,
+    });
+
+    if (!object) return notFound();
+
+    const respHeaders = new Headers();
+    object.writeHttpMetadata(respHeaders);
+    respHeaders.set("etag", object.httpEtag);
+    if (object.range) {
+      respHeaders.set("content-range", `bytes ${object.range.offset}-${object.range.offset + object.range.length - 1}/${object.size}`);
+      response = new Response(object.body, { headers: respHeaders, status: 206 });
+    } else {
+      response = new Response(object.body, { headers: respHeaders, status: 200 });
+    }
   }
-
-  const response = await fetch(new Request(url, fetchOptions));
 
   const headers = new Headers(response.headers);
 

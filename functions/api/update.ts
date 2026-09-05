@@ -20,9 +20,7 @@ export async function onRequestGet(context: any) {
 
   // 使用 Cloudflare Cache API 缓存更新查询接口，避免大量 R2 读操作
   const cache = (caches as any).default;
-  const cacheKey = new Request(url.toString(), {
-    headers: { "cache-control": "public, max-age=60" } // 缓存60秒即可
-  });
+  const cacheKey = new Request(url.toString());
   
   let cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) {
@@ -52,7 +50,7 @@ export async function onRequestGet(context: any) {
       return resp;
     }
 
-    const resp = new Response(JSON.stringify({ appId, ...appInfo }), {
+    const resp = new Response(JSON.stringify({ hasUpdate: true, appId, ...appInfo }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",

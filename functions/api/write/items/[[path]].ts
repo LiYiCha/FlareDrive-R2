@@ -37,6 +37,17 @@ export async function onRequestPostCompleteMultipart(context) {
 
   const completeBody: { parts: Array<any> } = await request.json();
 
+  // 检查上传前是否已存在同名文件以计算增量
+  let oldSize = 0;
+  let diffCount = 1;
+  try {
+    const headObj = await bucket.head(path).catch(() => null);
+    if (headObj) {
+      oldSize = headObj.size;
+      diffCount = 0;
+    }
+  } catch (e) {}
+
   try {
     const object = await multipartUpload.complete(completeBody.parts);
     
@@ -45,14 +56,6 @@ export async function onRequestPostCompleteMultipart(context) {
       const statsObj = await bucket.get("_$flaredrive$/metadata/storage_usage.json");
       if (statsObj) {
         const stats = JSON.parse(await statsObj.text());
-        let oldSize = 0;
-        let diffCount = 1;
-        // 检查之前是否已经有同名文件
-        const headObj = await bucket.head(path).catch(() => null);
-        if (headObj) {
-          oldSize = headObj.size;
-          diffCount = 0;
-        }
         stats.usedBytes = stats.usedBytes - oldSize + object.size;
         stats.fileCount += diffCount;
         stats.lastUpdated = Date.now();

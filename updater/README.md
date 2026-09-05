@@ -135,8 +135,10 @@ class MainActivity : Activity() {
 
         // 初始化更新模块
         val updater = Updater.Companion.Builder(this)
-            .setBaseHost("https://your-flaredrive-domain.workers.dev") // 部署的 Cloudflare 地址
+            .setBaseHost("https://pan.yourdomain.com") // 部署的 Cloudflare Pages 地址 (必填)
             .setAppId("com.example.myapp") // 必须与发布管理后台填写的 App ID 一致，默认取 packageName
+            // 可选：设置独立的自定义下载域名（若配置，客户端下载 APK 时将自动以此域名作为下载 Host，实现加速或分流）
+            .setDownloadHost("https://download.yourdomain.com") 
             .build()
 
         // 异步检查更新，若有新版则自动弹出对话框
@@ -195,7 +197,7 @@ updater.checkUpdate(
       "versionName": "1.0.5",
       "versionCode": 105,
       "description": "标准的原版官方客户端，适用于大部分普通用户。",
-      "downloadUrl": "/api/raw/apks/myapp-v1.0.5.apk",
+      "downloadUrl": "/raw/apks/myapp-v1.0.5.apk",
       "apkSize": 18454912,
       "apkMd5": "a85c8e31a8bc0ef2e0938ff5d023c72b"
     },

@@ -39,52 +39,60 @@ FlareDrive-R2 是基于 Cloudflare R2 + Workers 构建的在线网盘系统，�
    https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
    ```
 
-### 2. 部署 Pages 服务
+### 2. 部署到 Cloudflare Pages（必须选 Pages，不要选 Worker）
 
-1. Fork 本项目仓库到你的 GitHub
-2. 打开 Cloudflare Pages，新建一个站点
-3. 点击「连接到 Git」并选择你的仓库
-4. 保持默认的构建设置即可，第一次构建不会显示内容，为正常现象
+> 💡 **为什么是 Pages 而不是 Worker？**  
+> 本项目是 **Pages Full-Stack (Jamstack + Functions)** 架构：静态前端（HTML/Vue/CSS）与后端 API（`functions/` 目录云函数）深度整合。Cloudflare Pages 会自动分发静态文件到全球 CDN 并编译后端 API 路由。若部署为纯 Worker，将无法直接托管前端网页。
+
+1. **推送代码到 GitHub**：将本项目推送到你个人的 GitHub 仓库（公开或私有均可）。
+2. **连接 GitHub 到 Cloudflare**：
+   - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
+   - 点击左侧导航栏 **Workers 和 Pages (Workers & Pages)** -> **创建 (Create application)** -> 选择 **Pages** 选项卡。
+   - 点击 **连接到 Git (Connect to Git)**，授权并选中你的 GitHub 仓库。
+3. **构建设置（Build Settings）**：
+   - **Framework preset (框架预设)**：选择 `None`（无）
+   - **Build command (构建命令)**：**完全留空，不需要填任何命令**
+   - **Build output directory (构建输出目录)**：填 `/` 或 `.`（即当前仓库根目录）
+   - 点击 **保存并部署 (Save and Deploy)**。
 
 ### 3. 配置环境变量
 
-![secret](docs/secret.png)
-
-在 Cloudflare Pages 项目中，进入 **Settings → Environment Variables** 添加以下变量：
+进入已创建的 Pages 项目 -> **设置 (Settings)** -> **环境变量 (Environment variables)**，添加以下变量：
 
 | 变量名 | 示例值 | 是否必要 | 说明 |
-| --- | --- | --- | --- |
-| `PUBURL` | `https://pub-xxx.r2.dev` | ✅ 必填 | R2 公共存储桶地址（自定义域名） |
-| `admin:123456` | `*` | ⚠️ 兼容 | 原版管理员配置，格式为 `用户名:密码` |
+| :--- | :--- | :--- | :--- |
+| `GUEST` | `*` 或 `apks,public` | ⚠️ **更新必备** | **访客公开读取白名单**。若提供安卓端免登更新下载，必须设为 `*` 或包含你的 APK 目录（如 `apks`），否则安卓下载会报 401 权限不足！ |
+| `PUBURL` | `https://pub-xxx.r2.dev` | ❌ 可选 | R2 公共存储桶直链或自定义下载域名。未配置时系统会自动回退直连 R2 存储桶并支持 Range 断点续传 |
 | `ADMIN_USERNAME` | `admin` | ✅ 推荐 | 新版管理员账号（默认 `admin`） |
-| `ADMIN_PASSWORD_HASH` | `8d969eef6ecad...` | ✅ 推荐 | 新版管理员密码的 **SHA-256 哈希值** |
-| `JWT_SECRET` | `your_secret_32_chars` | ✅ 必要 | JWT Token 签名密钥，启用 JWT 登录态所用 |
-| `GUEST` | `public/` | ❌ 可选 | 游客写入的默认目录 |
+| `ADMIN_PASSWORD_HASH` | `8d969eef6ecad...` | ✅ 推荐 | 新版管理员密码的 **SHA-256 哈希值**（如明文 123456 的哈希） |
+| `JWT_SECRET` | `your_secret_32_chars` | ✅ 必要 | JWT Token 签名密钥，长度建议不少于 32 位 |
 | `QUOTA_BYTES` | `10737418240` | ❌ 可选 | 网盘总配额容量（字节，默认 10GB） |
 | `TURNSTILE_SITE_KEY` | `0x4AAAAAA...` | ❌ 可选 | Cloudflare Turnstile 验证码 Site Key（开启人机校验） |
 | `TURNSTILE_SECRET_KEY`| `0x4AAAAAA...` | ❌ 可选 | Cloudflare Turnstile 验证码 Secret Key |
 
-<p style="color: red !important; font-weight: bold;">
-  ⚠️ 请勿开启 R2 存储桶的公开读写权限！否则你的存储资源可能会被恶意刷爆。
-</p>
-
 ### 4. 绑定 R2 存储桶
 
-部署完成后：
+进入 Pages 项目设置：
+1. 点击 **设置 (Settings)** -> **函数 (Functions)**。
+2. 找到 **R2 存储桶绑定 (R2 bucket bindings)**，点击 **添加绑定 (Add binding)**。
+3. **变量名称 (Variable name)** 严格填写为：
+   ```txt
+   BUCKET
+   ```
+4. **R2 存储桶** 下拉选中你第 1 步创建好的存储桶。
 
-1. 进入 Cloudflare Pages 项目设置
-2. 点击「R2 存储桶」
-3. 添加一个绑定，变量名填写为：
+### 5. 绑定自定义域名（强烈推荐，国内访问极速）
 
-```
-BUCKET
-```
+> ⚠️ **强烈提醒**：Cloudflare 默认分配的 `*.pages.dev` 与 `*.r2.dev` 域名在国内部分地区和运营商存在 SNI 阻断与连接限制。强烈建议绑定自己的域名！
 
-并选择你的 R2 存储桶。
+1. 进入 Pages 项目页面，点击 **自定义域 (Custom domains)** 选项卡。
+2. 点击 **设置自定义域 (Set up a custom domain)**，输入你的二级域名（例如 `pan.yourdomain.com`）。
+3. Cloudflare 会自动完成 DNS 记录添加并自动配置终身免费的 SSL/HTTPS 证书。
+4. 在安卓端初始化 Updater 时，直接将 `baseHost` 传入此自定义域名即可享受极速 CDN 下载体验！
 
-### 5. 重新部署项目
+### 6. 重新部署生效
 
-完成所有设置后，回到 Pages 控制台，点击「Deployments」页面右上角的「Trigger Redeploy」以重新部署服务。
+完成环境变量配置和 R2 绑定后：进入 Pages 控制台中的 **Deployments** 页面，在最近一次构建记录右侧点击 `...` -> **重试部署 (Retry deployment)**，即可让所有配置立即生效。
 
 ---
 

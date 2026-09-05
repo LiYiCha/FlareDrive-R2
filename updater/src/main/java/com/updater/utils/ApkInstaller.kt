@@ -45,9 +45,11 @@ object ApkInstaller {
      * 校验文件 MD5 是否与预期一致
      */
     fun verifyApkMd5(file: File, expectedMd5: String): Boolean {
-        if (expectedMd5.isEmpty()) return true
+        val cleanExpected = expectedMd5.trim().trim('\"').trim('\'')
+        // 为空或为 S3/R2 分片上传生成的 ETag (形如 hash-part_num) 时跳过校验
+        if (cleanExpected.isEmpty() || cleanExpected.contains("-")) return true
         val actualMd5 = calculateFileMd5(file)
-        return actualMd5.equals(expectedMd5, ignoreCase = true)
+        return actualMd5.equals(cleanExpected, ignoreCase = true)
     }
 
     /**
