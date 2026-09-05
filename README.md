@@ -39,7 +39,7 @@ FlareDrive-R2 是基于 Cloudflare R2 + Workers 构建的在线网盘系统，�
    https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
    ```
 
-### 2. 部署到 Cloudflare Pages（必须选 Pages，不要选 Worker）
+### 2. 部署到 Cloudflare Pages
 
 > 💡 **为什么是 Pages 而不是 Worker？**  
 > 本项目是 **Pages Full-Stack (Jamstack + Functions)** 架构：静态前端（HTML/Vue/CSS）与后端 API（`functions/` 目录云函数）深度整合。Cloudflare Pages 会自动分发静态文件到全球 CDN 并编译后端 API 路由。若部署为纯 Worker，将无法直接托管前端网页。

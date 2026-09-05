@@ -16,7 +16,7 @@
   },
   "homepage": "https://github.com/willow-god/FlareDrive-R2#readme",
   "devDependencies": {
-    "@cloudflare/workers-types": "^3.3.1",
-    "wrangler": "^2.6.2"
+    "@cloudflare/workers-types": "^4.20240512.0",
+    "wrangler": "^3.57.1"
   }
 }
