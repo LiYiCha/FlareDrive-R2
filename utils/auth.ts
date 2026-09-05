@@ -45,9 +45,18 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
           const customAllowList = env[username] || env["ADMIN_ALLOW_LIST"];
           return customAllowList ? parseAllowList(customAllowList) : ["*"];
         }
-        // 普通用户的 allow-list
-        if (env[username]) {
-          return parseAllowList(env[username]);
+        // 普通用户的 allow-list: 优先读取 env[username]，若无则查找 env[username_xxx] 或 env[username:xxx]
+        let userAllowList: string | undefined = env[username];
+        if (!userAllowList) {
+          for (const key of Object.keys(env)) {
+            if (key.startsWith(`${username}_`) || key.startsWith(`${username}:`)) {
+              userAllowList = env[key];
+              break;
+            }
+          }
+        }
+        if (userAllowList) {
+          return parseAllowList(userAllowList);
         }
       }
     }

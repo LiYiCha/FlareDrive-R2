@@ -41,8 +41,11 @@ export async function onRequestPost(context: any) {
   // 3. 验证身份凭证
   let isAuthenticated = false;
 
-  if (typeof env[`${username}:${password}`] === "string") {
-    // 环境变量中存在 "用户名:密码" 的授权项 (如 admin:123456)
+  if (
+    typeof env[`${username}_${password}`] === "string" ||
+    typeof env[`${username}:${password}`] === "string"
+  ) {
+    // 环境变量中存在 "用户名_密码" 或 "用户名:密码" 的授权项
     isAuthenticated = true;
   } else if (env.admin) {
     // 兼容 admin=username:password 模式
