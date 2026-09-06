@@ -121,6 +121,17 @@ export async function can_access_path(context: any, targetPath: string): Promise
   return matchesAllowList(targetPath, allowList);
 }
 
+export async function can_write_path(context: any, targetPath: string): Promise<boolean> {
+  const allowList = await getAllowListForRequest(context);
+  if (!allowList) return false;
+  const cleanTarget = normalizePath(targetPath);
+  // update/ 软件更新发布目录的写入操作严格要求管理员权限 (*)
+  if (cleanTarget === "update" || cleanTarget.startsWith("update/")) {
+    return allowList.includes("*");
+  }
+  return matchesAllowList(targetPath, allowList);
+}
+
 export async function get_allow_list(context: any): Promise<string[] | null> {
   return getAllowListForRequest(context);
 }
@@ -130,7 +141,7 @@ export async function get_auth_status(context: any): Promise<boolean> {
   if (url.pathname.startsWith("/api/write/items/")) {
     const dopath = url.pathname.split("/api/write/items/")[1];
     if (!dopath) return false;
-    return can_access_path(context, dopath);
+    return can_write_path(context, dopath);
   } else if (url.pathname.startsWith("/api/write/s3/")) {
     const pathSegments = context.params.path || [];
     if (pathSegments.length <= 1) {
@@ -140,7 +151,7 @@ export async function get_auth_status(context: any): Promise<boolean> {
     }
     // S3 client 拼接的文件路径格式为: bucket_name/key
     const key = pathSegments.slice(1).join("/");
-    return can_access_path(context, key);
+    return can_write_path(context, key);
   }
   return false;
 }

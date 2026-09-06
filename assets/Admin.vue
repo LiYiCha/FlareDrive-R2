@@ -527,7 +527,7 @@
                       <strong>点击选择或直接将 APK 安装包拖拽到此处</strong>
                       <span>自动上传至 <code>/{{ getPackageUploadDir(pkg) }}/</code> 目录、自动提取文件名与校验码</span>
                       <button type="button" class="btn-mobile-select-apk" @click.stop="triggerApkSelect(idx)">
-                        📱 点击从手机选取 APK 文件
+                          点击从手机选取 APK 文件
                       </button>
                     </div>
                   </div>
