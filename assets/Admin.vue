@@ -138,10 +138,31 @@
           </div>
 
           <div class="dash-card-header" style="margin-top: 28px;">
-            <h3>S3 操作配额与网络流量指标</h3>
-            <span class="dash-card-subtitle">
-              {{ storageStats?.kvStats?.enabled ? '实时采集自 Cloudflare KV 统计数据库 (后台异步无感统计)' : '官方标准免费额度与出站免流标准 (可在 Pages 绑定 KV: KV 开启实时统计)' }}
-            </span>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div>
+                <h3 style="margin: 0;">S3 真实操作与网络流量指标</h3>
+                <span class="dash-card-subtitle">
+                  由 Cloudflare 边缘节点在请求处理期间异步捕获与持久化记录
+                </span>
+              </div>
+              <div v-if="storageStats?.kvStats?.enabled" style="font-size: 12px; color: #10B981; display: flex; align-items: center; gap: 4px; font-weight: 500;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10B981;"></span>
+                KV 边缘审计已激活
+              </div>
+              <div v-else style="font-size: 12px; color: #F59E0B; display: flex; align-items: center; gap: 4px; font-weight: 500;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #F59E0B;"></span>
+                未绑定 KV (计数未启动)
+              </div>
+            </div>
+          </div>
+
+          <!-- 未绑定 KV 提示条 -->
+          <div v-if="!storageStats?.kvStats?.enabled" style="margin-top: 12px; padding: 12px 16px; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; font-size: 13px; color: #92400E; line-height: 1.6;">
+            <strong>ℹ️ 为什么此模块暂未计数？</strong>
+            <p style="margin: 4px 0 0 0;">
+              Cloudflare Pages / Workers 属于无状态边缘计算，每次请求结束后内存即销毁，因此请求数、S3 操作数及传输流量<strong>必须依赖 Cloudflare KV 数据库才能跨请求持久化累计</strong>。<br>
+              若您需要开启实时计数，请在 Cloudflare Pages 设置中的 <code>Functions → KV namespace bindings</code> 添加绑定（变量名必须严格为 <code>KV</code>）并重新部署。上方的存储用量与文件总数则是直接调用 R2 API 获取的真实物理扫描数据。
+            </p>
           </div>
 
           <div class="stat-card-grid">
@@ -149,10 +170,10 @@
               <div class="card-label">S3 A 类操作 (写入/变更)</div>
               <div class="card-value">
                 <template v-if="storageStats?.kvStats?.enabled">
-                  {{ storageStats.kvStats.classA }} <span class="card-unit">次已执行 (月限额 100万次免费)</span>
+                  {{ storageStats.kvStats.classA }} <span class="card-unit">次已执行</span>
                 </template>
                 <template v-else>
-                  1,000,000 <span class="card-unit">次/月免费标准限额</span>
+                  <span style="color: #94A3B8; font-size: 16px;">未开启统计</span>
                 </template>
               </div>
               <div class="card-desc">PutObject / 分片上传 / 删除 / 创建文件夹</div>
@@ -162,10 +183,10 @@
               <div class="card-label">S3 B 类操作 (读取/检索)</div>
               <div class="card-value">
                 <template v-if="storageStats?.kvStats?.enabled">
-                  {{ storageStats.kvStats.classB }} <span class="card-unit">次已执行 (月限额 1000万次免费)</span>
+                  {{ storageStats.kvStats.classB }} <span class="card-unit">次已执行</span>
                 </template>
                 <template v-else>
-                  10,000,000 <span class="card-unit">次/月免费标准限额</span>
+                  <span style="color: #94A3B8; font-size: 16px;">未开启统计</span>
                 </template>
               </div>
               <div class="card-desc">GetObject / ListObjects / 文件下载与目录检索</div>
@@ -175,10 +196,10 @@
               <div class="card-label">总请求数 (Requests)</div>
               <div class="card-value">
                 <template v-if="storageStats?.kvStats?.enabled">
-                  {{ storageStats.kvStats.totalRequests }} <span class="card-unit">次请求已记录</span>
+                  {{ storageStats.kvStats.totalRequests }} <span class="card-unit">次请求</span>
                 </template>
                 <template v-else>
-                  未绑定 KV <span class="card-unit">绑定后开始计数</span>
+                  <span style="color: #94A3B8; font-size: 16px;">未开启统计</span>
                 </template>
               </div>
               <div class="card-desc">全站 API、浏览与资源访问总计</div>
@@ -191,7 +212,7 @@
                   {{ storageStats.kvStats.totalDownloads || 0 }} <span class="card-unit">次文件下载</span>
                 </template>
                 <template v-else>
-                  0 <span class="card-unit">次下载</span>
+                  <span style="color: #94A3B8; font-size: 16px;">未开启统计</span>
                 </template>
               </div>
               <div class="card-desc">/raw/ 资源与 APK 文件外链下载次数</div>
@@ -204,7 +225,7 @@
                   {{ formatSize(storageStats.kvStats.totalTrafficBytes || 0) }}
                 </template>
                 <template v-else>
-                  $0.00 <span class="card-unit">R2 永久免收流出流量费</span>
+                  <span style="color: #94A3B8; font-size: 16px;">未开启统计</span>
                 </template>
               </div>
               <div class="card-desc">经由 Cloudflare 边缘节点传输的真实数据流</div>
@@ -217,11 +238,11 @@
                   {{ storageStats.kvStats.lastClient.ip }} <span class="card-unit">[{{ storageStats.kvStats.lastClient.country }}]</span>
                 </template>
                 <template v-else>
-                  暂无访客数据
+                  <span style="color: #94A3B8; font-size: 16px;">未开启统计</span>
                 </template>
               </div>
               <div class="card-desc">
-                {{ storageStats?.kvStats?.enabled ? 'KV 实时捕获记录' : '在 Pages 设置中绑定 KV: KV 开启实时审计' }}
+                {{ storageStats?.kvStats?.enabled ? 'KV 实时捕获记录' : '绑定 KV 后将自动捕获最新访客网络信息' }}
               </div>
             </div>
           </div>
