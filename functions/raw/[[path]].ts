@@ -6,9 +6,7 @@ export async function onRequestGet(context: any) {
   if (!bucket) return notFound();
 
   // 1. 异步鉴权校验，并移除 WWW-Authenticate 避免浏览器弹窗
-  // update/ 软件更新公共目录与缩略图允许免鉴权访问
-  const isUpdatePath = (path || "").startsWith("update/") || (path || "") === "update";
-  if (!isUpdatePath && !await can_access_path(context, path || "")) {
+  if (!await can_access_path(context, path || "")) {
     return new Response("没有读取权限", { status: 401 });
   }
 
@@ -63,15 +61,17 @@ export async function onRequestGet(context: any) {
   if (path.startsWith("_$flaredrive$/thumbnails/")) {
     headers.set("Cache-Control", "public, max-age=31536000, immutable");
   } else {
-    // 判断该路径是否为游客 (GUEST) 可直接免登访问的公共文件
+    // 判断该路径是否为可公开下载的文件（例如 update/ 安装包或 GUEST 目录）
+    const isUpdateDir = path.startsWith("update/") || path === "update";
     const guestValue = context.env["GUEST"];
-    if (guestValue) {
+    let isPublic = isUpdateDir;
+    if (!isPublic && guestValue) {
       const guestAllowList = guestValue.split(",").map((entry: string) => entry.trim());
-      const isPublic = guestAllowList.includes("*") || guestAllowList.some((allow: string) => path.startsWith(allow));
-      if (isPublic) {
-        // 公共下载直链文件（例如 APK 包、分享的图片等）开启 CDN 强缓存
-        headers.set("Cache-Control", "public, max-age=31536000, immutable");
-      }
+      isPublic = guestAllowList.includes("*") || guestAllowList.some((allow: string) => path.startsWith(allow));
+    }
+    if (isPublic) {
+      // 公共下载直链文件（例如 APK 安装包）开启 CDN 强缓存
+      headers.set("Cache-Control", "public, max-age=31536000, immutable");
     }
   }
 

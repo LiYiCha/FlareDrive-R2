@@ -10,9 +10,18 @@ function parseAllowList(value: string | undefined): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function normalizePath(p: string): string {
+  return p.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
 function matchesAllowList(targetPath: string, allowList: string[]): boolean {
   if (allowList.includes("*")) return true;
-  return allowList.some((allow) => targetPath.startsWith(allow));
+  const cleanTarget = normalizePath(targetPath);
+  return allowList.some((allow) => {
+    const cleanAllow = normalizePath(allow);
+    if (!cleanAllow) return false;
+    return cleanTarget === cleanAllow || cleanTarget.startsWith(cleanAllow + "/");
+  });
 }
 
 // Timing safe equality helper for string verification
@@ -77,9 +86,16 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
     }
   }
 
-  // 3. 访客 GUEST 权限
-  if (env["GUEST"]) {
-    return parseAllowList(env["GUEST"]);
+  // 3. 访客 GUEST 与公开路径 PUBLIC_PATHS 权限
+  const guestConfig = env["GUEST"] || "";
+  const publicPathsConfig = env["PUBLIC_PATHS"] || "";
+  const combinedPublicList = [
+    ...parseAllowList(guestConfig),
+    ...parseAllowList(publicPathsConfig),
+  ];
+
+  if (combinedPublicList.length > 0) {
+    return combinedPublicList;
   }
 
   return null;
@@ -87,8 +103,19 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
 
 export async function can_access_path(context: any, targetPath: string): Promise<boolean> {
   if (targetPath.startsWith(THUMBNAIL_PREFIX)) return true;
-  // 软件更新安装包与配套文件（update/ 目录下所有文件）免登录公开访问
-  if (targetPath.startsWith("update/") || targetPath === "update") return true;
+
+  const env = context.env || {};
+  const cleanTarget = normalizePath(targetPath);
+
+  // 1. 环境变量控制：ALLOW_PUBLIC_UPDATE（默认 true，允许免登录直接下载 update/ 目录下的更新安装包）
+  // 用户可在 Cloudflare 环境变量中显式配置 ALLOW_PUBLIC_UPDATE=false 将其关闭
+  const allowPublicUpdate = env["ALLOW_PUBLIC_UPDATE"] !== "false" && env["ALLOW_PUBLIC_UPDATE"] !== false;
+  const isUpdateDir = cleanTarget === "update" || cleanTarget.startsWith("update/");
+  if (isUpdateDir && allowPublicUpdate) {
+    return true;
+  }
+
+  // 2. 检验环境变量 GUEST/PUBLIC_PATHS 白名单或登录凭据白名单
   const allowList = await getAllowListForRequest(context);
   if (!allowList) return false;
   return matchesAllowList(targetPath, allowList);
