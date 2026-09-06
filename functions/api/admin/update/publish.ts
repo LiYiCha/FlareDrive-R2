@@ -117,3 +117,37 @@ export async function onRequestPost(context: any) {
     });
   }
 }
+
+export async function onRequestGet(context: any) {
+  // 验证管理员权限 (需要包含 '*' 的权限，无权限或未登录统一返回 404 隐蔽模式)
+  const allowList = await get_allow_list(context);
+  if (!allowList || !allowList.includes("*")) {
+    return new Response(JSON.stringify({ error: "Not Found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const [bucket] = parseBucketPath(context);
+  if (!bucket) {
+    return new Response("Storage Bucket Not Configured", { status: 500 });
+  }
+
+  try {
+    const configObj = await bucket.get(UPDATE_METADATA_PATH);
+    if (!configObj) {
+      return new Response(JSON.stringify({ apps: {} }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    const text = await configObj.text();
+    return new Response(text, {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (e: any) {
+    return new Response(JSON.stringify({ apps: {} }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+

@@ -33,7 +33,7 @@
               font-family: '寒蝉半圆体', -apple-system, BlinkMacSystemFont, 'Segoe UI Adjusted',
     'Segoe UI', 'Liberation Sans', sans-serif;"
               class="menu-button-text">
-            {{ isLoggedIn ? '管理' : '菜单' }}
+            菜单
           </p>
           <svg t="1741761597964" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
             p-id="22027" width="24" height="24">
@@ -310,7 +310,10 @@
             </svg>
             <h3>控制台与系统运维监控</h3>
           </div>
-          <button class="btn-close-text" @click="showAdminPanel = false">关闭</button>
+          <div class="admin-header-actions">
+            <button class="btn-header-logout" @click="logout" title="安全退出管理员身份">退出登录</button>
+            <button class="btn-close-text" @click="showAdminPanel = false">关闭</button>
+          </div>
         </div>
         
         <div class="admin-tabs">
@@ -321,22 +324,22 @@
 
         <!-- 标签页 1: S3 运维与存储容量管理 -->
         <div v-if="activeTab === 'storage'" class="tab-content">
-          <div class="storage-panel-details" v-if="storageStats">
+          <div class="storage-panel-details">
             <div class="panel-section-title">存储与对象统计</div>
             <div class="stat-row">
-              <span>总存储额度 (Quota):</span> <strong>{{ formatSize(storageStats.quotaBytes) }}</strong>
+              <span>总存储额度 (Quota):</span> <strong>{{ formatSize(storageStats?.quotaBytes || 10737418240) }}</strong>
             </div>
             <div class="stat-row">
-              <span>已使用大小 (Used):</span> <strong>{{ formatSize(storageStats.usedBytes) }}</strong>
+              <span>已使用大小 (Used):</span> <strong>{{ storageStats?.loading ? '读取中...' : formatSize(storageStats?.usedBytes || 0) }}</strong>
             </div>
             <div class="stat-row">
-              <span>文件总数 (Files):</span> <strong>{{ storageStats.fileCount }}</strong>
+              <span>文件总数 (Files):</span> <strong>{{ storageStats?.loading ? '...' : (storageStats?.fileCount || 0) }}</strong>
             </div>
             <div class="stat-row">
-              <span>文件夹总数 (Folders):</span> <strong>{{ storageStats.folderCount || 0 }}</strong>
+              <span>文件夹总数 (Folders):</span> <strong>{{ storageStats?.loading ? '...' : (storageStats?.folderCount || 0) }}</strong>
             </div>
             <div class="stat-row">
-              <span>数据校准时间:</span> <span>{{ new Date(storageStats.lastUpdated || Date.now()).toLocaleString() }}</span>
+              <span>数据校准时间:</span> <span>{{ storageStats?.lastUpdated ? new Date(storageStats.lastUpdated).toLocaleString() : '首次使用，待全量校准' }}</span>
             </div>
             
             <div class="panel-section-title" style="margin-top: 16px;">S3 操作指标与流量优势</div>
@@ -573,7 +576,14 @@ export default {
     loginPassword: "",
     isLoggedIn: false,
     rememberMe: true,
-    storageStats: null,
+    storageStats: {
+      usedBytes: 0,
+      quotaBytes: 10 * 1024 * 1024 * 1024,
+      fileCount: 0,
+      folderCount: 0,
+      lastUpdated: null,
+      loading: true
+    },
     showAdminPanel: false,
     activeTab: "storage",
     appsUpdates: {},
@@ -615,19 +625,14 @@ export default {
       return folders;
     },
 
-    // 动态生成菜单项 (隐蔽模式：未登录时完全隐藏后台与登录入口，普通访客无法嗅探)
+    // 菜单项完全移除控制台、登录与退出登录，彻底隐蔽！
     menuItems() {
-      const items = [
+      return [
         { text: '按照名称排序A-Z' },
         { text: '按照大小递增排序' },
         { text: '按照大小递减排序' },
         { text: '粘贴文件到网盘' }
       ];
-      if (this.isLoggedIn) {
-        items.push({ text: '控制台与版本管理' });
-        items.push({ text: '安全退出登录' });
-      }
-      return items;
     }
   },
 
@@ -1018,9 +1023,17 @@ export default {
     fetchStorageStats() {
       axios.get("/api/storage/usage")
         .then(res => {
-          this.storageStats = res.data;
+          if (res.data) {
+            this.storageStats = {
+              ...res.data,
+              loading: false
+            };
+          }
         })
-        .catch(err => console.error("获取存储统计失败:", err));
+        .catch(err => {
+          console.error("获取存储统计失败:", err);
+          if (this.storageStats) this.storageStats.loading = false;
+        });
     },
 
     recalculateStorage() {
@@ -1029,7 +1042,10 @@ export default {
       axios.post("/api/storage/recalculate")
         .then(res => {
           if (res.data.success) {
-            this.storageStats = res.data.stats;
+            this.storageStats = {
+              ...res.data.stats,
+              loading: false
+            };
             alert("容量校准成功！");
           }
         })
@@ -1058,8 +1074,10 @@ export default {
         this.isLoggedIn = true;
         this.showLogin = false;
         this.loginPassword = ""; // 安全擦除密码
-        this.fetchFiles();
+        this.fetchFiles(true);
         this.fetchStorageStats();
+        // 登录成功后直接开启控制台面板
+        this.openAdminPanel();
       })
       .catch(err => {
         alert("登录失败：" + (err.response?.data?.error || err.message));
@@ -1071,28 +1089,27 @@ export default {
       sessionStorage.removeItem("flaredrive_token");
       this.isLoggedIn = false;
       this.showAdminPanel = false;
-      alert("已成功退出登录！");
-      this.fetchFiles();
+      alert("已成功退出管理员登录！");
+      if (this.dirCache) this.dirCache.clear();
+      this.fetchFiles(true);
       this.fetchStorageStats();
     },
 
     openAdminPanel() {
       this.showAdminPanel = true;
       this.fetchAppUpdates();
+      this.fetchStorageStats();
     },
 
     fetchAppUpdates() {
-      // 通过管理员授权通道直接读取存储桶中的更新配置
-      axios.get("/raw/_$flaredrive$/metadata/app_updates.json")
+      // 通过管理员授权接口直接从存储桶读取更新配置，杜绝请求 /raw/ 引发 401 登出
+      axios.get("/api/admin/update/publish")
         .then(res => {
           this.appsUpdates = res.data.apps || {};
         })
         .catch(err => {
-          if (err.response?.status === 404) {
-            this.appsUpdates = {};
-          } else {
-            console.error("获取 App 更新配置失败:", err);
-          }
+          console.error("获取 App 更新配置失败:", err);
+          this.appsUpdates = {};
         });
     },
 
@@ -1220,9 +1237,12 @@ export default {
     axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response && error.response.status === 401) {
-          this.isLoggedIn = false;
-          this.showLogin = true;
+        if (error.response && error.response.status === 401 && error.config && !error.config.url.endsWith("/api/login")) {
+          // 仅当管理员专有写操作或管理接口报错 401 时才判定 Token 失效，避免读取外链报错引发误登出
+          if (error.config.url.startsWith("/api/write/") || error.config.url.startsWith("/api/admin/")) {
+            this.isLoggedIn = false;
+            this.showLogin = true;
+          }
         }
         return Promise.reject(error);
       }
@@ -1258,8 +1278,11 @@ export default {
       }
       const response = await originalFetch(input, init);
       if (response.status === 401) {
-        self.isLoggedIn = false;
-        self.showLogin = true;
+        const urlStr = typeof input === "string" ? input : (input ? input.url : "");
+        if (urlStr && (urlStr.includes("/api/write/") || urlStr.includes("/api/admin/"))) {
+          self.isLoggedIn = false;
+          self.showLogin = true;
+        }
       }
       return response;
     };
@@ -1281,11 +1304,15 @@ export default {
     this.fetchSystemConfig();
     this.fetchStorageStats();
 
-    // 6. 隐蔽模式唤醒逻辑：键盘快捷键 Shift + L 唤出管理员登录
+    // 6. 隐蔽模式唤醒逻辑：键盘快捷键 Shift + L 直接开启控制台(已登录)或登录弹窗(未登录)
     window.addEventListener("keydown", (e) => {
       if (e.shiftKey && (e.key === "L" || e.key === "l")) {
         e.preventDefault();
-        this.showLogin = true;
+        if (this.isLoggedIn) {
+          this.openAdminPanel();
+        } else {
+          this.showLogin = true;
+        }
       }
     });
 
@@ -1293,7 +1320,11 @@ export default {
     try {
       const currentUrl = new URL(window.location);
       if (currentUrl.searchParams.get("console") === "manage" || currentUrl.searchParams.get("admin") === "1") {
-        this.showLogin = true;
+        if (this.isLoggedIn) {
+          this.openAdminPanel();
+        } else {
+          this.showLogin = true;
+        }
         currentUrl.searchParams.delete("console");
         currentUrl.searchParams.delete("admin");
         window.history.replaceState(null, "", currentUrl.toString());
@@ -1687,6 +1718,29 @@ export default {
 .admin-header-title h3 {
   margin: 0;
   font-size: 16px;
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-header-logout {
+  background: #FEF2F2;
+  border: 1px solid #FEE2E2;
+  color: #DC2626;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-header-logout:hover {
+  background: #FEE2E2;
+  color: #991B1B;
 }
 
 .btn-close-text {
