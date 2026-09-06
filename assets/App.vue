@@ -22,7 +22,7 @@
         <h1 class="app-title" style="font-size: 20px;margin: 0 25px 0 8px; user-select: none;">FlareDrive</h1>
       </a>
 
-      <input type="search" v-model="search" aria-label="Search" placeholder="🍿 输入以全局搜索文件" />
+      <input type="search" v-model="search" aria-label="Search" placeholder="输入以全局搜索文件..." />
       
       <div class="menu-button">
         <button class="circle" @click="showMenu = true" style="display: flex; align-items: center;background-color: rgb(245, 245, 245);">
@@ -52,7 +52,14 @@
       <!-- 存储容量卡片 -->
       <div v-if="storageStats" class="storage-widget">
         <div class="storage-info">
-          <span>💾 存储空间: {{ formatSize(storageStats.usedBytes) }} / {{ formatSize(storageStats.quotaBytes) }}</span>
+          <span class="storage-info-title">
+            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="storage-svg-icon">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
+            存储空间: {{ formatSize(storageStats.usedBytes) }} / {{ formatSize(storageStats.quotaBytes) }}
+          </span>
           <span>已使用 {{ ((storageStats.usedBytes / storageStats.quotaBytes) * 100).toFixed(1) }}%</span>
         </div>
         <div class="storage-progress-bar">
@@ -63,12 +70,50 @@
         </div>
       </div>
 
+      <!-- 面包屑与路径导航栏 -->
+      <div class="breadcrumb-toolbar">
+        <div class="breadcrumb-path">
+          <button class="breadcrumb-item" :class="{ 'breadcrumb-active': cwd === '' }" @click="navigateTo('')" title="返回根目录">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>根目录</span>
+          </button>
+          <template v-for="(crumb, idx) in breadcrumbs" :key="crumb.path">
+            <span class="breadcrumb-separator">/</span>
+            <button 
+              class="breadcrumb-item" 
+              :class="{ 'breadcrumb-active': idx === breadcrumbs.length - 1 }" 
+              @click="navigateTo(crumb.path)"
+            >
+              {{ crumb.name }}
+            </button>
+          </template>
+        </div>
+        <div class="breadcrumb-actions">
+          <button v-if="cwd !== ''" class="btn-tool" @click="navigateUp" title="返回上一级目录">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+            <span>上一级</span>
+          </button>
+          <button class="btn-tool" @click="refreshCurrentDir" title="刷新目录列表">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span>刷新</span>
+          </button>
+        </div>
+      </div>
+
       <ul class="file-list">
         <li v-if="cwd !== ''">
-          <div tabindex="0" class="file-item" @click="cwd = cwd.replace(/[^\/]+\/$/, '')" @contextmenu.prevent>
+          <div tabindex="0" class="file-item" @click="navigateUp" @contextmenu.prevent>
             <div class="file-icon">
-              <svg  viewBox="0 0 576 512"
-                xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+              <svg viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
                 <path d="M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"/>
               </svg>
             </div>
@@ -76,13 +121,12 @@
           </div>
         </li>
         <li v-for="folder in filteredFolders" :key="folder">
-          <div tabindex="0" class="file-item" @click="cwd = folder" @contextmenu.prevent="
+          <div tabindex="0" class="file-item" @click="navigateTo(folder)" @contextmenu.prevent="
             showContextMenu = true;
           focusedItem = folder;
           ">
             <div class="file-icon">
-              <svg  viewBox="0 0 576 512"
-                xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+              <svg viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
                 <path d="M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"/>
               </svg>
             </div>
@@ -200,8 +244,12 @@
     <!-- 管理员登录弹窗 -->
     <Dialog v-model="showLogin">
       <div class="login-header">
-        <h3>管理员登录</h3>
-        <p>输入凭证以获取网盘及版本管理权限</p>
+        <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round" class="login-svg-icon">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <h3>管理员鉴权</h3>
+        <p>输入管理凭证以进入控制台</p>
       </div>
       <div class="login-form">
         <div class="input-field">
@@ -213,9 +261,9 @@
         
         <div class="login-options">
           <label class="remember-label">
-            <input type="checkbox" v-model="rememberMe" /> 记住密码
+            <input type="checkbox" v-model="rememberMe" /> 记住登录状态
           </label>
-          <a href="javascript:void(0)" class="forgot-link" @click="showForgotTips = true">忘记密码？</a>
+          <a href="javascript:void(0)" class="forgot-link" @click="showForgotTips = true">凭证重置指南</a>
         </div>
         
         <button class="btn-primary" @click="handleLogin">登 录</button>
@@ -225,44 +273,58 @@
     <!-- 忘记密码提示弹窗 -->
     <Dialog v-model="showForgotTips">
       <div class="forgot-tips-container">
-        <h4>🔑 管理员密码找回与重置指南</h4>
+        <div class="forgot-tips-header">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+          </svg>
+          <h4>管理员凭证配置与重置指南</h4>
+        </div>
         <div class="forgot-tips-content">
-          <p>本系统采用 Serverless 架构，您的账号密码配置在 Cloudflare 环境变量中。</p>
+          <p>本系统采用 Serverless 边缘架构，管理员凭证通过环境变量直接校验：</p>
           <ol>
-            <li>登录您的 <strong>Cloudflare 控制台</strong>。</li>
-            <li>进入 <strong>Workers & Pages</strong> 菜单，选择您的网盘 Pages 项目。</li>
-            <li>切换到 <strong>Settings (设置)</strong> 选项卡 -> 选择 <strong>Variables and Secrets (变量与机密)</strong>。</li>
-            <li>在环境变量列表中直接查看或修改管理员账号密码：
+            <li>登录 <strong>Cloudflare 控制台</strong>。</li>
+            <li>进入 <strong>Workers & Pages</strong> -> 选择您的网盘 Pages 项目。</li>
+            <li>切换到 <strong>Settings (设置)</strong> -> <strong>Variables and Secrets (变量与机密)</strong>。</li>
+            <li>配置管理员环境变量，变量名统一采用下划线格式：
               <ul>
-                <li>若配置了 <code>ADMIN_PASSWORD_HASH</code>，该值对应的是密码的 SHA-256 哈希值。</li>
-                <li>若配置了原版 <code>admin</code> 变量，格式为 <code>用户名:密码</code>。</li>
+                <li>示例变量名：<code>admin_123456</code>，变量值填写：<code>*</code>（代表拥有全局所有路径的读写权限）。</li>
+                <li>若需要其他普通用户，可配置如 <code>user1_123456</code>，变量值填写允许访问的目录前缀。</li>
               </ul>
             </li>
-            <li>若修改了密码，请重新点击 <strong>Deploy (重新部署)</strong> 即可生效。</li>
+            <li>修改保存后，点击 <strong>Retry deployment (重新部署)</strong> 即可立即生效。</li>
           </ol>
         </div>
-        <button class="btn-secondary" @click="showForgotTips = false" style="margin-top: 15px;">我知道了</button>
+        <button class="btn-secondary" @click="showForgotTips = false" style="margin-top: 15px;">关闭指南</button>
       </div>
     </Dialog>
 
-    <!-- 系统管理与 App 更新面板 -->
+    <!-- 控制台与系统管理面板 -->
     <Dialog v-model="showAdminPanel">
       <div class="admin-panel">
         <div class="admin-header">
-          <h3>⚙️ 系统管理与版本发布</h3>
+          <div class="admin-header-title">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <h3>控制台与系统运维监控</h3>
+          </div>
           <button class="btn-close-text" @click="showAdminPanel = false">关闭</button>
         </div>
         
         <div class="admin-tabs">
-          <button :class="{ active: activeTab === 'storage' }" @click="activeTab = 'storage'">存储容量管理</button>
-          <button :class="{ active: activeTab === 'updates' }" @click="activeTab = 'updates'">App 版本更新</button>
+          <button :class="{ active: activeTab === 'storage' }" @click="activeTab = 'storage'">S3 运维与存储</button>
+          <button :class="{ active: activeTab === 'updates' }" @click="activeTab = 'updates'">App 版本管理</button>
+          <button :class="{ active: activeTab === 'defense' }" @click="activeTab = 'defense'">流量防御与审计</button>
         </div>
 
-        <!-- 标签页 1: 存储容量管理 -->
+        <!-- 标签页 1: S3 运维与存储容量管理 -->
         <div v-if="activeTab === 'storage'" class="tab-content">
           <div class="storage-panel-details" v-if="storageStats">
+            <div class="panel-section-title">存储与对象统计</div>
             <div class="stat-row">
-              <span>总容量额度 (Quota):</span> <strong>{{ formatSize(storageStats.quotaBytes) }}</strong>
+              <span>总存储额度 (Quota):</span> <strong>{{ formatSize(storageStats.quotaBytes) }}</strong>
             </div>
             <div class="stat-row">
               <span>已使用大小 (Used):</span> <strong>{{ formatSize(storageStats.usedBytes) }}</strong>
@@ -277,11 +339,35 @@
               <span>数据校准时间:</span> <span>{{ new Date(storageStats.lastUpdated || Date.now()).toLocaleString() }}</span>
             </div>
             
-            <div class="stat-warning-box">
-              <p>💡 提示：当上传或删除文件时，系统会在 R2 中增量统计存储大小。若偶遇容量显示不准，请点击下方按钮重新扫描全桶校准。</p>
+            <div class="panel-section-title" style="margin-top: 16px;">S3 操作指标与流量优势</div>
+            <div class="stat-card-grid">
+              <div class="stat-mini-card">
+                <div class="card-label">S3 A 类操作 (写入/变更)</div>
+                <div class="card-value">1,000,000 <span class="card-unit">次/月免费</span></div>
+                <div class="card-desc">PutObject / ListObjects / 分片上传</div>
+              </div>
+              <div class="stat-mini-card">
+                <div class="card-label">S3 B 类操作 (读取/检索)</div>
+                <div class="card-value">10,000,000 <span class="card-unit">次/月免费</span></div>
+                <div class="card-desc">GetObject / HeadObject / 元数据获取</div>
+              </div>
+              <div class="stat-mini-card">
+                <div class="card-label">外网出站流量 (Egress)</div>
+                <div class="card-value">$0.00 <span class="card-unit">永久免流量费</span></div>
+                <div class="card-desc">Cloudflare R2 原生零流量费架构</div>
+              </div>
+              <div class="stat-mini-card">
+                <div class="card-label">CDN 边缘缓存加速</div>
+                <div class="card-value">Cache Everything</div>
+                <div class="card-desc">直连 Anycast CDN，极大减少回源调用</div>
+              </div>
+            </div>
+
+            <div class="stat-tip-box">
+              <p>说明：当上传或删除文件时，系统会在 R2 中增量计算容量。若偶遇容量数据脱节，请点击下方按钮重新扫描全桶校准。</p>
             </div>
             
-            <button class="btn-warn" @click="recalculateStorage">重新扫描并校准存储大小</button>
+            <button class="btn-action-primary" @click="recalculateStorage">重新扫描并校准存储大小</button>
           </div>
         </div>
 
@@ -407,6 +493,38 @@
             </div>
           </div>
         </div>
+
+        <!-- 标签页 3: 流量防御与审计 -->
+        <div v-if="activeTab === 'defense'" class="tab-content">
+          <div class="defense-panel">
+            <div class="panel-section-title">防恶意刷量与热点防护机制</div>
+            
+            <div class="defense-card">
+              <div class="defense-card-header">
+                <span class="defense-tag">边缘缓存</span>
+                <strong>/raw/ 资源 Edge Cache Everything</strong>
+              </div>
+              <p>公开下载的大文件与安装包通过 Cloudflare CDN 全球边缘节点缓存，重复下载直接命中边缘，免除 R2 的 Class B 操作数消耗与源站开销。</p>
+            </div>
+
+            <div class="defense-card">
+              <div class="defense-card-header">
+                <span class="defense-tag">WAF 限流</span>
+                <strong>Cloudflare Rate Limiting 速率限制</strong>
+              </div>
+              <p>在 Cloudflare 控制台「安全性」->「WAF」中配置频率限制规则（如单 IP 10 秒内请求超 60 次触发人机质询），防范脚本暴力爬取与恶意遍历。</p>
+            </div>
+
+            <div class="panel-section-title" style="margin-top: 18px;">访问日志记录与架构规划</div>
+            <div class="defense-card">
+              <div class="defense-card-header">
+                <span class="defense-tag">日志方案</span>
+                <strong>标准日志处理方案 (避免内存溢出)</strong>
+              </div>
+              <p>Serverless 边缘 Worker 无常驻内存。推荐使用 <strong>Cloudflare Web Analytics</strong>（原生免费、零资源开销查看访客地域、IP 与请求次数），或通过 <strong>Cloudflare Logpush</strong> 流式归档至指定日志分析平台，杜绝单点内存泄露。</p>
+            </div>
+          </div>
+        </div>
       </div>
     </Dialog>
 
@@ -445,6 +563,9 @@ export default {
     uploadQueue: [],
     backgroundImageUrl: "/assets/bg-light.webp",
 
+    // 前端防内存溢出 LRU 目录缓存 (上限 50 个目录)
+    dirCache: new Map(),
+
     // 新增：安全与管理后台状态
     showLogin: false,
     showForgotTips: false,
@@ -461,6 +582,19 @@ export default {
   }),
 
   computed: {
+    breadcrumbs() {
+      if (!this.cwd) return [];
+      const parts = this.cwd.split("/").filter((p) => p.length > 0);
+      let accum = "";
+      return parts.map((part) => {
+        accum += part + "/";
+        return {
+          name: part,
+          path: accum,
+        };
+      });
+    },
+
     filteredFiles() {
       let files = this.files;
       if (this.search) {
@@ -481,7 +615,7 @@ export default {
       return folders;
     },
 
-    // 动态生成菜单项 (基于登录状态)
+    // 动态生成菜单项 (隐蔽模式：未登录时完全隐藏后台与登录入口，普通访客无法嗅探)
     menuItems() {
       const items = [
         { text: '按照名称排序A-Z' },
@@ -490,16 +624,46 @@ export default {
         { text: '粘贴文件到网盘' }
       ];
       if (this.isLoggedIn) {
-        items.push({ text: '网盘空间与版本管理' });
+        items.push({ text: '控制台与版本管理' });
         items.push({ text: '安全退出登录' });
-      } else {
-        items.push({ text: '管理员登录' });
       }
       return items;
     }
   },
 
   methods: {
+    navigateTo(targetPath) {
+      if (this.cwd === targetPath) return;
+      this.cwd = targetPath;
+    },
+
+    navigateUp() {
+      if (!this.cwd) return;
+      const parent = this.cwd.replace(/[^\/]+\/$/, "");
+      this.cwd = parent;
+    },
+
+    refreshCurrentDir() {
+      if (this.dirCache) {
+        this.dirCache.delete(this.cwd);
+      }
+      this.fetchFiles(true);
+      this.fetchStorageStats();
+    },
+
+    sortFiles() {
+      if (!this.files || !this.files.length) return;
+      this.files.sort((a, b) => {
+        if (this.order === "大小↑") {
+          return a.size - b.size;
+        } else if (this.order === "大小↓") {
+          return b.size - a.size;
+        } else {
+          return a.key.localeCompare(b.key);
+        }
+      });
+    },
+
     copyLink(link) {
       const url = new URL(link, window.location.origin);
       navigator.clipboard.writeText(url.toString());
@@ -519,18 +683,31 @@ export default {
         this.showUploadPopup = false;
         const uploadUrl = `/api/write/items/${this.cwd}${folderName}/_$folder$`;
         await axios.put(uploadUrl, "");
-        this.fetchFiles();
+        if (this.dirCache) this.dirCache.clear();
+        this.fetchFiles(true);
         this.fetchStorageStats();
       } catch (error) {
         console.log(`Create folder failed`);
       }
     },
 
-    fetchFiles() {
+    fetchFiles(forceRefresh = false) {
+      const currentDir = this.cwd;
+      if (!forceRefresh && this.dirCache && this.dirCache.has(currentDir)) {
+        const cached = this.dirCache.get(currentDir);
+        this.dirCache.delete(currentDir);
+        this.dirCache.set(currentDir, cached);
+        this.files = [...cached.files];
+        this.folders = [...cached.folders];
+        this.sortFiles();
+        this.loading = false;
+        return;
+      }
+
       this.files = [];
       this.folders = [];
       this.loading = true;
-      fetch(`/api/children/${this.cwd}`)
+      fetch(`/api/children/${currentDir}`)
         .then((res) => {
           if (!res.ok) {
             this.loading = false;
@@ -540,15 +717,26 @@ export default {
         })
         .then((files) => {
           if (!files) return;
-          this.files = files.value;
-          if (this.order) {
-            this.files.sort((a, b) => {
-              if (this.order === "size") {
-                return b.size - a.size;
-              }
+          this.files = files.value || [];
+          this.folders = files.folders || [];
+          this.sortFiles();
+          this.loading = false;
+
+          // 存入前端 LRU 缓存，严格限制上限为 50 个目录，杜绝长时间浏览导致内存溢出
+          if (this.dirCache) {
+            if (this.dirCache.has(currentDir)) {
+              this.dirCache.delete(currentDir);
+            } else if (this.dirCache.size >= 50) {
+              const oldestKey = this.dirCache.keys().next().value;
+              this.dirCache.delete(oldestKey);
+            }
+            this.dirCache.set(currentDir, {
+              files: this.files,
+              folders: this.folders
             });
           }
-          this.folders = files.folders;
+        })
+        .catch(() => {
           this.loading = false;
         });
     },
@@ -590,6 +778,7 @@ export default {
         case "管理员登录":
           this.showLogin = true;
           break;
+        case "控制台与版本管理":
         case "网盘空间与版本管理":
           this.openAdminPanel();
           break;
@@ -625,13 +814,15 @@ export default {
       if (newName === null) return;
       if (newName === "") newName = this.clipboard.split("/").pop();
       await this.copyPaste(this.clipboard, `${this.cwd}${newName}`);
-      this.fetchFiles();
+      if (this.dirCache) this.dirCache.clear();
+      this.fetchFiles(true);
       this.fetchStorageStats();
     },
 
     async processUploadQueue() {
       if (!this.uploadQueue.length) {
-        this.fetchFiles();
+        if (this.dirCache) this.dirCache.clear();
+        this.fetchFiles(true);
         this.fetchStorageStats(); // 刷新容量
         this.uploadProgress = null;
         return;
@@ -684,7 +875,8 @@ export default {
     async removeFile(key) {
       if (!window.confirm(`确定要删除 ${key} 吗？`)) return;
       await axios.delete(`/api/write/items/${key}`);
-      this.fetchFiles();
+      if (this.dirCache) this.dirCache.clear();
+      this.fetchFiles(true);
       this.fetchStorageStats();
     },
 
@@ -693,7 +885,8 @@ export default {
       if (!newName) return;
       await this.copyPaste(key, `${this.cwd}${newName}`);
       await axios.delete(`/api/write/items/${key}`);
-      this.fetchFiles();
+      if (this.dirCache) this.dirCache.clear();
+      this.fetchFiles(true);
     },
 
     async moveFile(key) {
@@ -772,7 +965,8 @@ export default {
           await this.copyPaste(key, targetFilePath);
           await axios.delete(`/api/write/items/${key}`);
         }
-        this.fetchFiles();
+        if (this.dirCache) this.dirCache.clear();
+        this.fetchFiles(true);
         this.fetchStorageStats();
       } catch (error) {
         console.error('移动失败:', error);
@@ -1086,6 +1280,25 @@ export default {
     // 5. 异步读取系统配置与存储统计
     this.fetchSystemConfig();
     this.fetchStorageStats();
+
+    // 6. 隐蔽模式唤醒逻辑：键盘快捷键 Shift + L 唤出管理员登录
+    window.addEventListener("keydown", (e) => {
+      if (e.shiftKey && (e.key === "L" || e.key === "l")) {
+        e.preventDefault();
+        this.showLogin = true;
+      }
+    });
+
+    // 7. URL 暗号参数自动唤醒：?console=manage 或 ?admin=1
+    try {
+      const currentUrl = new URL(window.location);
+      if (currentUrl.searchParams.get("console") === "manage" || currentUrl.searchParams.get("admin") === "1") {
+        this.showLogin = true;
+        currentUrl.searchParams.delete("console");
+        currentUrl.searchParams.delete("admin");
+        window.history.replaceState(null, "", currentUrl.toString());
+      }
+    } catch (e) {}
   },
 
   components: {
@@ -1178,304 +1391,646 @@ export default {
 }
 
 /* --- 新增安全和仪表盘样式 --- */
+/* --- 导航与面包屑工具栏 --- */
+.breadcrumb-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+}
+
+.breadcrumb-path {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.breadcrumb-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0F172A;
+}
+
+.breadcrumb-item.breadcrumb-active {
+  color: #0F172A;
+  font-weight: 600;
+}
+
+.breadcrumb-separator {
+  color: #94A3B8;
+  font-size: 12px;
+  user-select: none;
+  margin: 0 1px;
+}
+
+.breadcrumb-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-tool:hover {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+
+/* --- 存储容量监控卡片 --- */
 .storage-widget {
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.6);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   margin-bottom: 12px;
   border-radius: 8px;
   font-size: 13px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
 }
+
 .storage-info {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
-  font-weight: bold;
-  color: #333;
+  font-weight: 600;
+  color: #1E293B;
 }
+
+.storage-info-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.storage-svg-icon {
+  color: #475569;
+}
+
 .storage-progress-bar {
   height: 6px;
-  background: rgba(0, 0, 0, 0.08);
+  background: #E2E8F0;
   border-radius: 3px;
   overflow: hidden;
   margin-bottom: 6px;
 }
+
 .storage-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: #0F172A;
   border-radius: 3px;
   transition: width 0.3s ease;
 }
+
 .storage-footer-stats {
   font-size: 11px;
-  color: #666;
+  color: #64748B;
   text-align: right;
 }
 
+/* --- 登录弹窗与忘记密码指引 --- */
 .login-header {
   text-align: center;
   margin-bottom: 20px;
 }
+
+.login-svg-icon {
+  color: #0F172A;
+  margin-bottom: 6px;
+}
+
 .login-header h3 {
   margin: 0 0 5px 0;
   font-size: 18px;
+  color: #0F172A;
 }
+
 .login-header p {
   margin: 0;
   font-size: 12px;
-  color: #666;
+  color: #64748B;
 }
+
 .login-form .input-field {
   margin-bottom: 12px;
 }
+
 .login-form .input-field input {
   width: 100%;
   padding: 10px;
-  border: 1px solid #ddd;
+  border: 1px solid #CBD5E1;
   border-radius: 6px;
   box-sizing: border-box;
+  font-size: 13px;
+  background: #FFFFFF;
 }
+
+.login-form .input-field input:focus {
+  outline: none;
+  border-color: #0F172A;
+}
+
 .login-options {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 15px;
   font-size: 12px;
 }
+
 .remember-label {
   cursor: pointer;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
+
 .forgot-link {
-  color: #667eea;
-  text-decoration: none;
+  color: #475569;
+  text-decoration: underline;
+  cursor: pointer;
 }
+
+.forgot-link:hover {
+  color: #0F172A;
+}
+
 .btn-primary {
   width: 100%;
   padding: 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0F172A;
   border: none;
   border-radius: 6px;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
-.btn-secondary {
-  width: 100%;
-  padding: 10px;
-  background: #eee;
-  border: none;
-  border-radius: 6px;
-  color: #333;
-  cursor: pointer;
-}
-.forgot-tips-container h4 {
-  margin-top: 0;
-}
-.forgot-tips-content {
+  color: #FFFFFF;
+  font-weight: 600;
   font-size: 13px;
-  line-height: 1.5;
-}
-.forgot-tips-content ol, .forgot-tips-content ul {
-  padding-left: 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
+.btn-primary:hover {
+  background: #1E293B;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 9px;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  color: #334155;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.forgot-tips-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0F172A;
+  margin-bottom: 10px;
+}
+
+.forgot-tips-header h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.forgot-tips-content {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.forgot-tips-content ol, .forgot-tips-content ul {
+  padding-left: 18px;
+  margin: 8px 0;
+}
+
+.forgot-tips-content li {
+  margin-bottom: 4px;
+}
+
+.forgot-tips-content code {
+  background: #F1F5F9;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #0F172A;
+}
+
+/* --- 控制台面板 --- */
 .admin-panel {
   display: flex;
   flex-direction: column;
-  max-height: 70vh;
+  max-height: 75vh;
   overflow-y: auto;
   min-width: 320px;
-  width: 500px;
+  width: 520px;
   max-width: 90vw;
   text-align: left;
 }
+
 .admin-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 10px;
 }
-.admin-header h3 {
+
+.admin-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0F172A;
+}
+
+.admin-header-title h3 {
   margin: 0;
+  font-size: 16px;
 }
+
 .btn-close-text {
   background: none;
   border: none;
-  color: #666;
+  color: #64748B;
+  font-size: 12px;
   cursor: pointer;
 }
+
+.btn-close-text:hover {
+  color: #0F172A;
+}
+
 .admin-tabs {
   display: flex;
-  margin-top: 10px;
-  margin-bottom: 15px;
-  border-bottom: 1px solid #eee;
+  margin-top: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #E2E8F0;
 }
+
 .admin-tabs button {
   flex: 1;
-  padding: 8px;
+  padding: 8px 4px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
   font-size: 13px;
-  color: #666;
+  color: #64748B;
+  transition: all 0.15s ease;
 }
+
 .admin-tabs button.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
-  font-weight: bold;
+  color: #0F172A;
+  border-bottom-color: #F6821F;
+  font-weight: 600;
 }
+
+.panel-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
 .stat-row {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px dashed #eee;
+  padding: 7px 0;
+  border-bottom: 1px dashed #E2E8F0;
   font-size: 13px;
+  color: #334155;
 }
-.stat-warning-box {
-  background: #fff3cd;
-  color: #856404;
+
+.stat-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 480px) {
+  .stat-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-mini-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.card-label {
+  font-size: 11px;
+  color: #64748B;
+  margin-bottom: 4px;
+}
+
+.card-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.card-unit {
+  font-size: 10px;
+  font-weight: 400;
+  color: #64748B;
+}
+
+.card-desc {
+  font-size: 10px;
+  color: #94A3B8;
+  margin-top: 3px;
+}
+
+.stat-tip-box {
+  background: #F1F5F9;
+  color: #475569;
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 11px;
   margin: 12px 0;
+  border-left: 3px solid #94A3B8;
 }
-.btn-warn {
+
+.stat-tip-box p {
+  margin: 0;
+}
+
+.btn-action-primary {
   width: 100%;
   padding: 10px;
-  background: #ffc107;
+  background: #0F172A;
   border: none;
   border-radius: 6px;
-  color: #212529;
-  font-weight: bold;
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 12px;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
+
+.btn-action-primary:hover {
+  background: #1E293B;
+}
+
+/* --- 流量防御与审计面板 --- */
+.defense-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.defense-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.defense-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #0F172A;
+}
+
+.defense-tag {
+  background: #E2E8F0;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.defense-card p {
+  margin: 0;
+  font-size: 11px;
+  color: #64748B;
+  line-height: 1.5;
+}
+
+/* --- App 版本管理 --- */
 .section-title-btn {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
+
 .section-title-btn h4 {
   margin: 0;
+  font-size: 14px;
+  color: #0F172A;
 }
+
 .btn-sm-primary {
   padding: 5px 10px;
-  background: #667eea;
+  background: #0F172A;
   border: none;
   border-radius: 4px;
   color: white;
   font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
 }
+
+.btn-sm-primary:hover {
+  background: #1E293B;
+}
+
 .btn-sm-secondary {
   padding: 5px 10px;
-  background: #eee;
-  border: none;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
   border-radius: 4px;
-  color: #333;
+  color: #334155;
   font-size: 11px;
   cursor: pointer;
 }
+
 .app-update-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
+
 .app-update-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px;
-  border: 1px solid #eee;
+  border: 1px solid #E2E8F0;
   border-radius: 6px;
   margin-bottom: 6px;
+  background: #F8FAFC;
 }
+
 .app-id-tag {
   font-size: 11px;
-  color: #888;
+  color: #64748B;
   margin-left: 4px;
 }
+
 .app-item-meta {
   font-size: 11px;
-  color: #666;
+  color: #64748B;
   margin-top: 2px;
 }
+
 .app-item-actions button {
-  padding: 3px 6px;
+  padding: 3px 8px;
   margin-left: 4px;
-  background: #f8f9fa;
-  border: 1px solid #ddd;
-  border-radius: 3px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
   cursor: pointer;
   font-size: 11px;
+  color: #334155;
 }
+
+.btn-text-danger {
+  color: #EF4444 !important;
+  border-color: #FCA5A5 !important;
+}
+
 .empty-list-info, .empty-packages {
   text-align: center;
   padding: 20px;
   font-size: 12px;
-  color: #888;
+  color: #94A3B8;
 }
+
 .form-group {
   margin-bottom: 10px;
 }
+
 .form-group label {
   display: block;
   font-size: 11px;
-  color: #666;
+  color: #475569;
   margin-bottom: 3px;
+  font-weight: 500;
 }
+
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group textarea,
 .form-group select {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ddd;
+  border: 1px solid #CBD5E1;
   border-radius: 4px;
   box-sizing: border-box;
   font-size: 12px;
+  background: #FFFFFF;
 }
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #0F172A;
+}
+
 .checkbox-label {
   display: flex;
   align-items: center;
   gap: 5px;
   cursor: pointer;
+  font-size: 12px;
+  color: #334155;
 }
+
 .form-group-row {
   display: flex;
   gap: 8px;
 }
+
 .form-group-row .form-group {
   flex: 1;
 }
+
 .packages-section {
-  border-top: 1px solid #eee;
+  border-top: 1px solid #E2E8F0;
   margin-top: 12px;
   padding-top: 12px;
 }
+
 .package-edit-card {
-  border: 1px dashed #ccc;
+  border: 1px dashed #CBD5E1;
   border-radius: 6px;
-  padding: 8px;
+  padding: 10px;
   margin-bottom: 8px;
-  background: rgba(0,0,0,0.02);
+  background: #F8FAFC;
 }
+
 .package-card-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
 }
+
 .package-card-header h6 {
   margin: 0;
   font-size: 12px;
+  color: #0F172A;
 }
+
 .form-actions {
   display: flex;
   gap: 8px;
   margin-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid #E2E8F0;
   padding-top: 12px;
 }
 </style>

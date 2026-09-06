@@ -4,11 +4,11 @@ import { get_allow_list } from "@/utils/auth";
 const UPDATE_METADATA_PATH = "_$flaredrive$/metadata/app_updates.json";
 
 export async function onRequestPost(context: any) {
-  // 1. 验证管理员权限 (需要包含 '*' 的权限)
+  // 1. 验证管理员权限 (需要包含 '*' 的权限，无权限或未登录统一返回 404 隐蔽模式)
   const allowList = await get_allow_list(context);
   if (!allowList || !allowList.includes("*")) {
-    return new Response(JSON.stringify({ error: "没有操作权限" }), {
-      status: 401,
+    return new Response(JSON.stringify({ error: "Not Found" }), {
+      status: 404,
       headers: { "Content-Type": "application/json" }
     });
   }
