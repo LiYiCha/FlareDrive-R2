@@ -1,7 +1,7 @@
 <template>
   <footer class="site-footer">
     <div class="footer-inner">
-      <div class="footer-brand">
+      <div class="footer-brand" @click="$emit('open-admin')" title="Cloudflare Edge Console" style="cursor: pointer; user-select: none;">
         <span class="status-indicator">
           <span class="status-dot"></span>
           Cloudflare Edge Connected

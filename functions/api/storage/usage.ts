@@ -53,20 +53,54 @@ export async function onRequestGet(context: any) {
   try {
     const metadataObj = await bucket.get(METADATA_PATH);
     if (!metadataObj) {
-      // 首次未生成元数据时，极速响应基础结构，不阻塞主线程，后台异步执行扫描
+      let kvStats: any = null;
+      if (context.env?.KV) {
+        try {
+          const kv = context.env.KV;
+          const [classAStr, classBStr, reqsStr, dlStr, trafficStr, lastClientStr, logsStr] = await Promise.all([
+            kv.get("metrics:class_a"),
+            kv.get("metrics:class_b"),
+            kv.get("metrics:requests"),
+            kv.get("metrics:downloads"),
+            kv.get("metrics:traffic_bytes"),
+            kv.get("metrics:last_client"),
+            kv.get("metrics:recent_logs")
+          ]);
+          let recentLogs = [];
+          try {
+            if (logsStr) recentLogs = JSON.parse(logsStr);
+          } catch (e) {}
+          kvStats = {
+            enabled: true,
+            classA: parseInt(classAStr || "0", 10),
+            classB: parseInt(classBStr || "0", 10),
+            totalRequests: parseInt(reqsStr || "0", 10),
+            totalDownloads: parseInt(dlStr || "0", 10),
+            totalTrafficBytes: parseInt(trafficStr || "0", 10),
+            lastClient: lastClientStr ? JSON.parse(lastClientStr) : null,
+            recentLogs
+          };
+        } catch (kvErr) {
+          kvStats = { enabled: false };
+        }
+      } else {
+        kvStats = { enabled: false };
+      }
+
       const initialStats = {
         usedBytes: 0,
         quotaBytes: quotaBytes,
         fileCount: 0,
         folderCount: 0,
         lastUpdated: null,
-        initialized: false
+        initialized: false,
+        kvStats
       };
       if (context.waitUntil) {
         context.waitUntil(recalculateStorage(bucket, quotaBytes).catch(() => {}));
       }
       return new Response(JSON.stringify(initialStats), {
-        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=10" }
+        headers: { "Content-Type": "application/json" }
       });
     }
 
@@ -81,7 +115,45 @@ export async function onRequestGet(context: any) {
       });
     }
 
-    return new Response(JSON.stringify(stats), {
+    // 检查并提取 KV 中的实时操作、流量、下载与请求日志
+    let kvStats: any = null;
+    if (context.env?.KV) {
+      try {
+        const kv = context.env.KV;
+        const [classAStr, classBStr, reqsStr, dlStr, trafficStr, lastClientStr, logsStr] = await Promise.all([
+          kv.get("metrics:class_a"),
+          kv.get("metrics:class_b"),
+          kv.get("metrics:requests"),
+          kv.get("metrics:downloads"),
+          kv.get("metrics:traffic_bytes"),
+          kv.get("metrics:last_client"),
+          kv.get("metrics:recent_logs")
+        ]);
+        let recentLogs = [];
+        try {
+          if (logsStr) recentLogs = JSON.parse(logsStr);
+        } catch (e) {}
+        kvStats = {
+          enabled: true,
+          classA: parseInt(classAStr || "0", 10),
+          classB: parseInt(classBStr || "0", 10),
+          totalRequests: parseInt(reqsStr || "0", 10),
+          totalDownloads: parseInt(dlStr || "0", 10),
+          totalTrafficBytes: parseInt(trafficStr || "0", 10),
+          lastClient: lastClientStr ? JSON.parse(lastClientStr) : null,
+          recentLogs
+        };
+      } catch (kvErr) {
+        kvStats = { enabled: false };
+      }
+    } else {
+      kvStats = { enabled: false };
+    }
+
+    return new Response(JSON.stringify({
+      ...stats,
+      kvStats
+    }), {
       headers: { "Content-Type": "application/json" }
     });
   } catch (e: any) {
