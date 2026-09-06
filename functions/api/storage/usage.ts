@@ -17,7 +17,7 @@ export async function recalculateStorage(bucket: any, quotaBytes: number): Promi
       if (key.startsWith("_$flaredrive$/")) {
         continue;
       }
-      if (key.endsWith("/_$folder$")) {
+      if (key.endsWith("/_$folder$") || key.endsWith("_$folder$")) {
         folderCount++;
         continue;
       }

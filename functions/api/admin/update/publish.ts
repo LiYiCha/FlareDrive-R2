@@ -28,7 +28,7 @@ export async function onRequestPost(context: any) {
     });
   }
 
-  const { appId, appName, latestVersionCode, latestVersionName, updateLog, isForceUpdate, packages, deleteAction } = body;
+  const { appId, appName, latestVersionCode, latestVersionName, updateLog, isForceUpdate, apkUploadDir, packages, deleteAction } = body;
 
   try {
     // 2. 读取现有的更新配置
@@ -84,6 +84,7 @@ export async function onRequestPost(context: any) {
       latestVersionName,
       updateLog: updateLog || "",
       isForceUpdate: !!isForceUpdate,
+      apkUploadDir: apkUploadDir ? apkUploadDir.trim() : "",
       packages: packages || [],
       lastUpdated: Date.now()
     };

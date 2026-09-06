@@ -44,7 +44,10 @@ export async function onRequestGet(context) {
     }
 
     return new Response(JSON.stringify({ value: objKeys, folders }), {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "private, max-age=5, stale-while-revalidate=30"
+      },
     });
   } catch (e) {
     return new Response(e.toString(), { status: 500 });

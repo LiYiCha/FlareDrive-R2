@@ -80,130 +80,194 @@
           </div>
         </div>
 
-        <!-- 面包屑与路径导航栏 (支持拖放放入) -->
-        <div class="breadcrumb-toolbar">
-          <div class="breadcrumb-path">
-            <button 
-              class="breadcrumb-item" 
-              :class="{ 'breadcrumb-active': cwd === '', 'folder-drop-hover': dragOverCrumb === '' }" 
-              @click="navigateTo('')" 
-              @dragover.prevent="onDragOverCrumb($event, '')"
-              @dragleave="dragOverCrumb = null"
-              @drop.prevent="onDropOnCrumb($event, '')"
-              title="返回根目录 (支持文件拖拽放入)"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>
-              <span>根目录</span>
-            </button>
-            <template v-for="(crumb, idx) in breadcrumbs" :key="crumb.path">
-              <span class="breadcrumb-separator">/</span>
-              <button 
-                class="breadcrumb-item" 
-                :class="{ 'breadcrumb-active': idx === breadcrumbs.length - 1, 'folder-drop-hover': dragOverCrumb === crumb.path }" 
-                @click="navigateTo(crumb.path)"
-                @dragover.prevent="onDragOverCrumb($event, crumb.path)"
-                @dragleave="dragOverCrumb = null"
-                @drop.prevent="onDropOnCrumb($event, crumb.path)"
-                title="点击跳转 / 拖拽移入此目录"
-              >
-                {{ crumb.name }}
-              </button>
-            </template>
+        <!-- 全局搜索结果面板 (当搜索框有内容时展示) -->
+        <div v-if="search.trim()" class="search-results-panel">
+          <div class="search-results-header">
+            <div class="search-info">
+              <span>全盘搜索结果: "<strong>{{ search }}</strong>"</span>
+              <span v-if="!searchLoading" class="search-count">共检索到 {{ searchResults.length }} 个文件</span>
+            </div>
+            <button class="btn-clear-search" @click="search = ''">返回目录浏览</button>
           </div>
-          <div class="breadcrumb-actions">
-            <button v-if="cwd !== ''" class="btn-tool" @click="navigateUp" title="返回上一级目录">
-              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="18 15 12 9 6 15"></polyline>
-              </svg>
-              <span>上一级</span>
-            </button>
-            <button class="btn-tool" @click="refreshCurrentDir" title="刷新目录列表">
-              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="23 4 23 10 17 10"></polyline>
-                <polyline points="1 20 1 14 7 14"></polyline>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-              <span>刷新</span>
-            </button>
+
+          <div v-if="searchLoading" style="margin: 35px 0; text-align: center">
+            <span style="font-size: 15px; color: #64748B;">正在进行跨目录全盘极速检索...</span>
+          </div>
+
+          <ul v-else-if="searchResults.length" class="file-list">
+            <li v-for="file in searchResults" :key="file.key">
+              <div 
+                tabindex="0" 
+                class="file-item search-file-item" 
+                @click="preview(`/raw/${file.key}`)" 
+                @contextmenu.prevent.stop="openItemContextMenu($event, file, false)"
+              >
+                <MimeIcon :content-type="file.httpMetadata?.contentType" :thumbnail="file.customMetadata?.thumbnail ? `/raw/_$flaredrive$/thumbnails/${file.customMetadata.thumbnail}.png` : null" />
+                <div class="file-info-container">
+                  <div class="file-name" v-text="file.key.split('/').pop()"></div>
+                  <div class="file-attr">
+                    <span class="search-file-path" @click.stop="navigateToParent(file.key)" title="点击直达所在目录">
+                      📁 /{{ file.key.substring(0, file.key.lastIndexOf('/') + 1) }}
+                    </span>
+                    <span v-text="formatSize(file.size)"></span>
+                    <span v-text="new Date(file.uploaded).toLocaleDateString()"></span>
+                  </div>
+                </div>
+                <div class="search-item-actions">
+                  <button class="btn-goto-folder" @click.stop="navigateToParent(file.key)" title="直接前往该文件所在目录">
+                    直达目录
+                  </button>
+                  <div style="margin-left: 8px;" @click.stop="openItemContextMenu($event, file, false)">
+                    <svg t="1741761103305" class="icon" viewBox="0 0 1024 1024" width="24" height="24">
+                      <path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z" fill="#64748B"></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </li>
+          </ul>
+
+          <div v-else style="margin: 40px 0; text-align: center">
+            <span style="font-size: 15px; color: #94A3B8;">未在网盘中找到与 "{{ search }}" 匹配的文件</span>
           </div>
         </div>
 
-        <!-- 文件与文件夹列表 -->
-        <ul class="file-list" @contextmenu.self.prevent="openBlankContextMenu">
-          <li v-if="cwd !== ''">
-            <div tabindex="0" class="file-item" @click="navigateUp" @contextmenu.prevent.stop="openBlankContextMenu">
-              <div class="file-icon">
-                <svg viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
-                  <path d="M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"/>
+        <!-- 普通目录浏览视图 -->
+        <template v-else>
+          <!-- 面包屑与路径导航栏 (支持拖放放入) -->
+          <div class="breadcrumb-toolbar">
+            <div class="breadcrumb-path">
+              <button 
+                class="breadcrumb-item" 
+                :class="{ 'breadcrumb-active': cwd === '', 'folder-drop-hover': dragOverCrumb === '' }" 
+                @click="navigateTo('')" 
+                @dragover.prevent="onDragOverCrumb($event, '')"
+                @dragleave="dragOverCrumb = null"
+                @drop.prevent="onDropOnCrumb($event, '')"
+                title="返回根目录 (支持文件拖拽放入)"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
-              </div>
-              <div class="file-info-container"><span class="file-name">返回上级目录</span></div>
+                <span>根目录</span>
+              </button>
+              <template v-for="(crumb, idx) in breadcrumbs" :key="crumb.path">
+                <span class="breadcrumb-separator">/</span>
+                <button 
+                  class="breadcrumb-item" 
+                  :class="{ 'breadcrumb-active': idx === breadcrumbs.length - 1, 'folder-drop-hover': dragOverCrumb === crumb.path }" 
+                  @click="navigateTo(crumb.path)"
+                  @dragover.prevent="onDragOverCrumb($event, crumb.path)"
+                  @dragleave="dragOverCrumb = null"
+                  @drop.prevent="onDropOnCrumb($event, crumb.path)"
+                  title="点击跳转 / 拖拽移入此目录"
+                >
+                  {{ crumb.name }}
+                </button>
+              </template>
             </div>
-          </li>
-          
-          <!-- 文件夹项目 (支持拖出移动和拖入放置) -->
-          <li v-for="folder in filteredFolders" :key="folder">
-            <div 
-              tabindex="0" 
-              class="file-item" 
-              :class="{ 'folder-drop-hover': dragOverFolder === folder }"
-              @click="navigateTo(folder)" 
-              @contextmenu.prevent.stop="openItemContextMenu($event, folder, true)"
-              draggable="true"
-              @dragstart="onDragStart($event, folder + '_$folder$')"
-              @dragend="onDragEnd"
-              @dragover.prevent="onDragOverFolder($event, folder)"
-              @dragleave="onDragLeaveFolder(folder)"
-              @drop.prevent="onDropOnFolder($event, folder)"
-            >
-              <div class="file-icon">
-                <svg viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
-                  <path d="M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"/>
+            <div class="breadcrumb-actions">
+              <button v-if="cwd !== ''" class="btn-tool" @click="navigateUp" title="返回上一级目录">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="18 15 12 9 6 15"></polyline>
                 </svg>
-              </div>
-              <div class="file-info-container"><span class="file-name" v-text="folder.match(/.*?([^/]*)\/?$/)[1]"></span></div>
-              <div style="margin-right: 10px;margin-left: auto;" @click.stop="openItemContextMenu($event, folder, true)">
-                <svg t="1741761103305" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6484" width="28" height="28">
-                  <path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245333-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 341.333333V192a64 64 0 0 0-60.245334-63.893333L810.666667 128z" fill="#2c2c2c" p-id="6485"></path>
+                <span>上一级</span>
+              </button>
+              <button class="btn-tool" @click="refreshCurrentDir" title="刷新目录列表">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                 </svg>
-              </div>
+                <span>刷新</span>
+              </button>
             </div>
-          </li>
+          </div>
 
-          <!-- 文件项目 (支持长按/拖动移动) -->
-          <li v-for="file in filteredFiles" :key="file.key">
-            <div 
-              tabindex="0" 
-              class="file-item" 
-              style="position: relative;"
-              @click="preview(`/raw/${file.key}`)" 
-              @contextmenu.prevent.stop="openItemContextMenu($event, file, false)"
-              draggable="true"
-              @dragstart="onDragStart($event, file.key)"
-              @dragend="onDragEnd"
-            >
-              <MimeIcon :content-type="file.httpMetadata?.contentType" :thumbnail="file.customMetadata?.thumbnail ? `/raw/_$flaredrive$/thumbnails/${file.customMetadata.thumbnail}.png` : null" />
-              <div class="file-info-container">
-                <div class="file-name" v-text="file.key.split('/').pop()"></div>
-                <div class="file-attr">
-                  <span v-text="new Date(file.uploaded).toLocaleString()"></span>
-                  <span v-text="formatSize(file.size)"></span>
+          <!-- 文件与文件夹列表 -->
+          <ul class="file-list" @contextmenu.self.prevent="openBlankContextMenu">
+            <li v-if="cwd !== ''">
+              <div tabindex="0" class="file-item" @click="navigateUp" @contextmenu.prevent.stop="openBlankContextMenu">
+                <div class="file-icon">
+                  <svg viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+                    <path d="M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"/>
+                  </svg>
+                </div>
+                <div class="file-info-container"><span class="file-name">返回上级目录</span></div>
+              </div>
+            </li>
+            
+            <!-- 文件夹项目 (支持拖出移动和拖入放置) -->
+            <li v-for="folder in filteredFolders" :key="folder">
+              <div 
+                tabindex="0" 
+                class="file-item" 
+                :class="{ 'folder-drop-hover': dragOverFolder === folder }"
+                @click="navigateTo(folder)" 
+                @contextmenu.prevent.stop="openItemContextMenu($event, folder, true)"
+                draggable="true"
+                @dragstart="onDragStart($event, folder + '_$folder$')"
+                @dragend="onDragEnd"
+                @dragover.prevent="onDragOverFolder($event, folder)"
+                @dragleave="onDragLeaveFolder(folder)"
+                @drop.prevent="onDropOnFolder($event, folder)"
+              >
+                <div class="file-icon">
+                  <svg viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+                    <path d="M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"/>
+                  </svg>
+                </div>
+                <div class="file-info-container"><span class="file-name" v-text="folder.match(/.*?([^/]*)\/?$/)[1]"></span></div>
+                <div style="margin-right: 10px;margin-left: auto;" @click.stop="openItemContextMenu($event, folder, true)">
+                  <svg t="1741761103305" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6484" width="28" height="28">
+                    <path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245333-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 341.333333V192a64 64 0 0 0-60.245333-63.893333L810.666667 128z" fill="#2c2c2c" p-id="6485"></path>
+                  </svg>
                 </div>
               </div>
-              <div style="margin-right: 10px;margin-left: auto;" @click.stop="openItemContextMenu($event, file, false)">
-                <svg t="1741761103305" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6484" width="28" height="28">
-                  <path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 341.333333V192a64 64 0 0 0-60.245334-63.893333L810.666667 128z" fill="#2c2c2c" p-id="6485"></path>
-                </svg>
+            </li>
+
+            <!-- 文件项目 (支持长按/拖动移动) -->
+            <li v-for="file in filteredFiles" :key="file.key">
+              <div 
+                tabindex="0" 
+                class="file-item" 
+                style="position: relative;"
+                @click="preview(`/raw/${file.key}`)" 
+                @contextmenu.prevent.stop="openItemContextMenu($event, file, false)"
+                draggable="true"
+                @dragstart="onDragStart($event, file.key)"
+                @dragend="onDragEnd"
+              >
+                <MimeIcon :content-type="file.httpMetadata?.contentType" :thumbnail="file.customMetadata?.thumbnail ? `/raw/_$flaredrive$/thumbnails/${file.customMetadata.thumbnail}.png` : null" />
+                <div class="file-info-container">
+                  <div class="file-name" v-text="file.key.split('/').pop()"></div>
+                  <div class="file-attr">
+                    <span v-text="new Date(file.uploaded).toLocaleString()"></span>
+                    <span v-text="formatSize(file.size)"></span>
+                  </div>
+                </div>
+                <div style="margin-right: 10px;margin-left: auto;" @click.stop="openItemContextMenu($event, file, false)">
+                  <svg t="1741761103305" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6484" width="28" height="28">
+                    <path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245333-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 341.333333V192a64 64 0 0 0-60.245333-63.893333L810.666667 128z" fill="#2c2c2c" p-id="6485"></path>
+                  </svg>
+                </div>
               </div>
-            </div>
-          </li>
-        </ul>
-        
-        <div v-if="loading" style="margin: 30px 0; text-align: center">
-          <span style="font-size: 16px; color: #64748B;">正在加载文件...</span>
+            </li>
+          </ul>
+          
+          <div v-if="loading" style="margin: 30px 0; text-align: center">
+            <span style="font-size: 16px; color: #64748B;">正在加载文件...</span>
+          </div>
+          <div v-else-if="!filteredFiles.length && !filteredFolders.length" style="margin: 40px 0; text-align: center">
+            <span style="font-size: 16px; color: #94A3B8;">当前目录为空，可右键或点击右下角按钮上传</span>
+          </div>
+        </template>
+      </div><!-- end file-list-container -->
+      
+      <div style="flex:1" @contextmenu.prevent="openBlankContextMenu"></div>
+      <Footer @open-admin="onFooterAdminClick" />
+    </div>..</span>
         </div>
         <div v-else-if="!filteredFiles.length && !filteredFolders.length" style="margin: 40px 0; text-align: center">
           <span style="font-size: 16px; color: #94A3B8;">当前目录为空，可右键或点击右下角按钮上传</span>
@@ -422,6 +486,59 @@ import MimeIcon from "./MimeIcon.vue";
 import UploadPopup from "./UploadPopup.vue";
 import Footer from "./Footer.vue";
 
+// 全局前置注入 JWT Token 与请求拦截（确保在 Vue watcher immediate 执行前拦截生效）
+if (window.axios && !window._axiosPatched) {
+  window.axios.interceptors.request.use((config) => {
+    const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+    if (token && config.url) {
+      let isSameOrigin = false;
+      try {
+        const targetUrl = new URL(config.url, window.location.origin);
+        isSameOrigin = targetUrl.origin === window.location.origin;
+      } catch (e) {
+        isSameOrigin = !config.url.startsWith("http:") && !config.url.startsWith("https:") && !config.url.startsWith("//");
+      }
+      if (isSameOrigin) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
+    }
+    return config;
+  });
+  window._axiosPatched = true;
+}
+
+if (!window._fetchPatched) {
+  const originalFetch = window.fetch;
+  window.fetch = async function (input, init) {
+    init = init || {};
+    init.headers = init.headers || {};
+    const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+    if (token) {
+      let isSameOrigin = false;
+      try {
+        const urlStr = typeof input === "string" ? input : input.url;
+        const targetUrl = new URL(urlStr, window.location.origin);
+        isSameOrigin = targetUrl.origin === window.location.origin;
+      } catch (e) {
+        isSameOrigin = typeof input === "string" && !input.startsWith("http:") && !input.startsWith("https:") && !input.startsWith("//");
+      }
+      if (isSameOrigin) {
+        if (init.headers instanceof Headers) {
+          init.headers.set("Authorization", "Bearer " + token);
+        } else if (Array.isArray(init.headers)) {
+          const idx = init.headers.findIndex(h => h[0] === "Authorization");
+          if (idx !== -1) init.headers[idx][1] = "Bearer " + token;
+          else init.headers.push(["Authorization", "Bearer " + token]);
+        } else {
+          init.headers["Authorization"] = "Bearer " + token;
+        }
+      }
+    }
+    return originalFetch(input, init);
+  };
+  window._fetchPatched = true;
+}
+
 export default {
   data: () => ({
     cwd: new URL(window.location).searchParams.get("p") || "",
@@ -432,12 +549,21 @@ export default {
     loading: false,
     order: null,
     search: "",
+    searchResults: [],
+    searchLoading: false,
+    searchTimer: null,
     showContextMenu: false,
     showMenu: false,
     showUploadPopup: false,
     uploadProgress: null,
     uploadQueue: [],
-    backgroundImageUrl: "/assets/bg-light.webp",
+    
+    // 双壁纸支持与切换
+    wallpaperList: [
+      { id: "anime", name: "二次元动漫", url: "/assets/wallpaper-anime.jpg" },
+      { id: "cartoon", name: "卡通小花", url: "/assets/wallpaper-cartoon.jpg" }
+    ],
+    currentWallpaperId: localStorage.getItem("flaredrive_wallpaper") || "anime",
 
     // 前端防内存溢出 LRU 目录缓存 (上限 50 个目录)
     dirCache: new Map(),
@@ -470,6 +596,11 @@ export default {
   }),
 
   computed: {
+    backgroundImageUrl() {
+      const found = this.wallpaperList.find(w => w.id === this.currentWallpaperId);
+      return found ? found.url : "/assets/wallpaper-anime.jpg";
+    },
+
     breadcrumbs() {
       if (!this.cwd) return [];
       const parts = this.cwd.split("/").filter((p) => p.length > 0);
@@ -503,13 +634,15 @@ export default {
       return folders;
     },
 
-    // 菜单项：前台保持极简与纯粹
+    // 菜单项：前台支持切换壁纸
     menuItems() {
+      const isAnime = this.currentWallpaperId === 'anime';
       const items = [
         { text: '按照名称排序A-Z' },
         { text: '按照大小递增排序' },
         { text: '按照大小递减排序' },
-        { text: '粘贴文件到网盘' }
+        { text: '粘贴文件到网盘' },
+        { text: isAnime ? '切换壁纸: 卡通正男' : '切换壁纸: 二次元动漫' }
       ];
       if (this.isLoggedIn) {
         items.push(
@@ -589,54 +722,56 @@ export default {
       }
     },
 
-    fetchFiles(forceRefresh = false) {
+    async fetchFiles(forceRefresh = false) {
       const currentDir = this.cwd;
+      const now = Date.now();
       if (!forceRefresh && this.dirCache && this.dirCache.has(currentDir)) {
         const cached = this.dirCache.get(currentDir);
-        this.dirCache.delete(currentDir);
-        this.dirCache.set(currentDir, cached);
-        this.files = [...cached.files];
-        this.folders = [...cached.folders];
-        this.sortFiles();
-        this.loading = false;
-        return;
+        // 缓存有效时长 120 秒，杜绝重复加载
+        if (cached && (now - cached.time < 120000)) {
+          this.files = [...cached.files];
+          this.folders = [...cached.folders];
+          this.sortFiles();
+          this.loading = false;
+          return;
+        }
       }
 
       this.files = [];
       this.folders = [];
       this.loading = true;
-      fetch(`/api/children/${currentDir}`)
-        .then((res) => {
-          if (!res.ok) {
-            this.loading = false;
-            return null;
-          }
-          return res.json();
-        })
-        .then((files) => {
-          if (!files) return;
-          this.files = files.value || [];
-          this.folders = files.folders || [];
-          this.sortFiles();
+      try {
+        const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+        const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+        const res = await fetch(`/api/children/${currentDir}`, { headers });
+        if (!res.ok) {
           this.loading = false;
+          return;
+        }
+        const files = await res.json();
+        if (!files) return;
+        this.files = files.value || [];
+        this.folders = files.folders || [];
+        this.sortFiles();
+        this.loading = false;
 
-          // 存入前端 LRU 缓存，严格限制上限为 50 个目录，杜绝长时间浏览导致内存溢出
-          if (this.dirCache) {
-            if (this.dirCache.has(currentDir)) {
-              this.dirCache.delete(currentDir);
-            } else if (this.dirCache.size >= 50) {
-              const oldestKey = this.dirCache.keys().next().value;
-              this.dirCache.delete(oldestKey);
-            }
-            this.dirCache.set(currentDir, {
-              files: this.files,
-              folders: this.folders
-            });
+        // 存入前端 LRU 缓存，严格限制上限为 50 个目录
+        if (this.dirCache) {
+          if (this.dirCache.has(currentDir)) {
+            this.dirCache.delete(currentDir);
+          } else if (this.dirCache.size >= 50) {
+            const oldestKey = this.dirCache.keys().next().value;
+            this.dirCache.delete(oldestKey);
           }
-        })
-        .catch(() => {
-          this.loading = false;
-        });
+          this.dirCache.set(currentDir, {
+            files: [...this.files],
+            folders: [...this.folders],
+            time: now
+          });
+        }
+      } catch (err) {
+        this.loading = false;
+      }
     },
 
     formatSize(size) {
@@ -661,6 +796,12 @@ export default {
     },
 
     onMenuClick(text) {
+      if (text.startsWith("切换壁纸:")) {
+        const nextId = this.currentWallpaperId === 'anime' ? 'cartoon' : 'anime';
+        this.currentWallpaperId = nextId;
+        localStorage.setItem('flaredrive_wallpaper', nextId);
+        return;
+      }
       switch (text) {
         case "按照名称排序A-Z":
           this.order = null;
@@ -976,13 +1117,20 @@ export default {
     },
 
     async executeMove(sourceKey, targetDir) {
-      const fileName = sourceKey.split('/').pop();
-      const finalFileName = fileName.endsWith('_$folder$') ? fileName.slice(0, -9) : fileName;
+      const isFolder = sourceKey.endsWith('_$folder$');
+      let finalFileName = "";
+      if (isFolder) {
+        const clean = sourceKey.slice(0, -9);
+        finalFileName = clean.split('/').filter(Boolean).pop() || "";
+      } else {
+        finalFileName = sourceKey.split('/').pop() || "";
+      }
       const normalizedPath = targetDir === '' ? '' : (targetDir.endsWith('/') ? targetDir : targetDir + '/');
 
       try {
-        if (sourceKey.endsWith('_$folder$')) {
-          const sourceBasePath = sourceKey.slice(0, -9);
+        this.loading = true;
+        if (isFolder) {
+          const sourceBasePath = sourceKey.slice(0, -9).replace(/\/$/, "") + "/";
           const targetBasePath = normalizedPath + finalFileName + '/';
           const allItems = await this.getAllItems(sourceBasePath);
           const totalItems = allItems.length;
@@ -1011,13 +1159,47 @@ export default {
           await axios.delete(`/api/write/items/${sourceKey}`);
         }
 
-        if (this.dirCache) this.dirCache.clear();
-        this.fetchFiles(true);
+        if (this.dirCache) {
+          this.dirCache.delete(this.cwd);
+          this.dirCache.delete(targetDir);
+          this.dirCache.delete(normalizedPath);
+        }
+        this.search = "";
+        await this.fetchFiles(true);
         this.fetchStorageStats();
+        this.loading = false;
+        alert(`已成功移动到: /${normalizedPath}`);
       } catch (error) {
+        this.loading = false;
+        this.uploadProgress = null;
         console.error('移动失败:', error);
-        alert('移动失败，请确认权限或网络状态');
+        alert('移动失败，请确认权限或网络状态: ' + (error.response?.data?.error || error.message));
       }
+    },
+
+    async performGlobalSearch(q) {
+      try {
+        const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+        const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          this.searchResults = data.results || [];
+        } else {
+          this.searchResults = [];
+        }
+      } catch (e) {
+        this.searchResults = [];
+      } finally {
+        this.searchLoading = false;
+      }
+    },
+
+    navigateToParent(key) {
+      const lastSlash = key.lastIndexOf('/');
+      const parentDir = lastSlash === -1 ? '' : key.substring(0, lastSlash + 1);
+      this.search = '';
+      this.navigateTo(parentDir);
     },
 
     async getAllItems(prefix) {
@@ -1092,6 +1274,22 @@ export default {
   },
 
   watch: {
+    search: {
+      handler(val) {
+        if (this.searchTimer) clearTimeout(this.searchTimer);
+        const q = (val || "").trim();
+        if (!q) {
+          this.searchResults = [];
+          this.searchLoading = false;
+          return;
+        }
+        this.searchLoading = true;
+        this.searchTimer = setTimeout(() => {
+          this.performGlobalSearch(q);
+        }, 300);
+      }
+    },
+
     cwd: {
       handler() {
         this.fetchFiles();
@@ -1779,5 +1977,93 @@ progress::-webkit-progress-value {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+/* 全局搜索结果面板样式 */
+.search-results-panel {
+  padding: 6px 0;
+}
+
+.search-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #F1F5F9;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  border: 1px solid #E2E8F0;
+}
+
+.search-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #1E293B;
+}
+
+.search-count {
+  font-size: 11px;
+  color: #64748B;
+  background: #FFFFFF;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid #CBD5E1;
+}
+
+.btn-clear-search {
+  padding: 5px 12px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-search:hover {
+  background: #0F172A;
+  color: #FFFFFF;
+  border-color: #0F172A;
+}
+
+.search-file-path {
+  color: #2563EB !important;
+  cursor: pointer;
+  text-decoration: underline;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+.search-item-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 10px;
+}
+
+.btn-goto-folder {
+  padding: 4px 10px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 6px;
+  color: #1D4ED8;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-goto-folder:hover {
+  background: #2563EB;
+  color: #FFFFFF;
+  border-color: #2563EB;
 }
 </style>

@@ -154,6 +154,7 @@ export async function onRequestPut(context) {
   if (request.headers.has("fd-thumbnail"))
     customMetadata.thumbnail = request.headers.get("fd-thumbnail");
 
+  const isFolderPlaceholder = path.endsWith("/_$folder$") || path.endsWith("_$folder$");
   // 增量更新存储使用情况 - 检查原大小
   let oldSize = 0;
   let diffCount = 1;
@@ -173,8 +174,12 @@ export async function onRequestPut(context) {
     const statsObj = await bucket.get("_$flaredrive$/metadata/storage_usage.json");
     if (statsObj) {
       const stats = JSON.parse(await statsObj.text());
-      stats.usedBytes = stats.usedBytes - oldSize + size;
-      stats.fileCount += diffCount;
+      if (isFolderPlaceholder) {
+        stats.folderCount = Math.max(0, (stats.folderCount || 0) + diffCount);
+      } else {
+        stats.usedBytes = Math.max(0, stats.usedBytes - oldSize + size);
+        stats.fileCount = Math.max(0, (stats.fileCount || 0) + diffCount);
+      }
       stats.lastUpdated = Date.now();
       await bucket.put("_$flaredrive$/metadata/storage_usage.json", JSON.stringify(stats), {
         httpMetadata: { contentType: "application/json" }

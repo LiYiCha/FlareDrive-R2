@@ -87,6 +87,8 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
 
 export async function can_access_path(context: any, targetPath: string): Promise<boolean> {
   if (targetPath.startsWith(THUMBNAIL_PREFIX)) return true;
+  // 软件更新安装包与配套文件（update/ 目录下所有文件）免登录公开访问
+  if (targetPath.startsWith("update/") || targetPath === "update") return true;
   const allowList = await getAllowListForRequest(context);
   if (!allowList) return false;
   return matchesAllowList(targetPath, allowList);

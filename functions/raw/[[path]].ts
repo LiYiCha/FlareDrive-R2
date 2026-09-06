@@ -6,7 +6,9 @@ export async function onRequestGet(context: any) {
   if (!bucket) return notFound();
 
   // 1. 异步鉴权校验，并移除 WWW-Authenticate 避免浏览器弹窗
-  if (!await can_access_path(context, path || "")) {
+  // update/ 软件更新公共目录与缩略图允许免鉴权访问
+  const isUpdatePath = (path || "").startsWith("update/") || (path || "") === "update";
+  if (!isUpdatePath && !await can_access_path(context, path || "")) {
     return new Response("没有读取权限", { status: 401 });
   }
 

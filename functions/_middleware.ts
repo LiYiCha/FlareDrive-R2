@@ -41,18 +41,19 @@ export async function onRequest(context: any) {
           let opType = "API 请求";
           if (
             method === "PUT" ||
-            method === "POST" ||
             method === "DELETE" ||
-            pathname.startsWith("/api/write/")
+            (method === "POST" && !pathname.startsWith("/api/login")) ||
+            pathname.startsWith("/api/write/") ||
+            (method === "GET" && (pathname.startsWith("/api/children/") || pathname.startsWith("/api/search")))
           ) {
             classA += 1;
-            opType = "S3 A类写入";
-          } else if (method === "GET" && pathname.startsWith("/api/children/")) {
+            opType = (method === "GET") ? "R2 目录检索 (A类)" : "R2 写入/删除 (A类)";
+          } else if (isDownload || (method === "GET" && pathname.startsWith("/raw/"))) {
             classB += 1;
-            opType = "S3 B类检索";
-          } else if (isDownload) {
+            opType = "文件下载 (B类)";
+          } else if (method === "GET" && pathname.startsWith("/api/storage/")) {
             classB += 1;
-            opType = "文件下载";
+            opType = "存储读取 (B类)";
           }
 
           // 3. 构建滑动窗口最近访问记录 (最新 30 条真实请求流水)

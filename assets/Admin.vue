@@ -323,14 +323,37 @@
                 <input type="text" v-model="editingApp.latestVersionName" placeholder="例如 2.0.0" />
               </div>
             </div>
-            <div class="form-group">
+            <div class="form-group force-update-wrap">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="editingApp.isForceUpdate" /> 强制更新 (锁定主程序需更新后才能继续运行)
+                <input type="checkbox" v-model="editingApp.isForceUpdate" />
+                <span>强制更新 (锁定主程序需更新后才能继续运行)</span>
               </label>
             </div>
-            <div class="form-group">
-              <label>更新日志 (Changelog)</label>
-              <textarea v-model="editingApp.updateLog" rows="3" placeholder="填写新版本更新日志..."></textarea>
+            <div class="form-group changelog-group">
+              <div class="changelog-header-row">
+                <label style="margin: 0;">更新日志 (Changelog - 支持 Markdown 格式)</label>
+                <div class="changelog-tabs">
+                  <button type="button" class="tab-pill" :class="{ active: changelogTab === 'edit' }" @click="changelogTab = 'edit'">编辑</button>
+                  <button type="button" class="tab-pill" :class="{ active: changelogTab === 'preview' }" @click="changelogTab = 'preview'">预览</button>
+                </div>
+              </div>
+              
+              <div v-show="changelogTab === 'edit'" class="changelog-editor-card">
+                <div class="changelog-quick-tools">
+                  <button type="button" class="tool-btn" @click="insertMdPrefix('- ')">• 列表项</button>
+                  <button type="button" class="tool-btn" @click="insertMdWrap('**', '**')"><b>B</b> 加粗</button>
+                  <button type="button" class="tool-btn" @click="insertMdWrap('`', '`')">&lt;/&gt; 代码</button>
+                  <button type="button" class="tool-btn" @click="insertMdPrefix('### ')">H3 标题</button>
+                </div>
+                <textarea 
+                  ref="changelogTextarea"
+                  v-model="editingApp.updateLog" 
+                  rows="4" 
+                  class="changelog-textarea" 
+                  placeholder="填写新版本更新日志，支持标准 Markdown 格式，例如：&#10;- 修复已知崩溃与闪退问题&#10;- **全新界面设计优化**&#10;- 提升传输性能与稳定性"
+                ></textarea>
+              </div>
+              <div v-show="changelogTab === 'preview'" class="changelog-preview-card" v-html="renderMarkdown(editingApp.updateLog)"></div>
             </div>
             <div class="form-group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -342,10 +365,10 @@
                   style="font-size: 11px; padding: 0; background: none; border: none; color: #2563EB; cursor: pointer; text-decoration: underline;"
                   @click="setAppSubDirDefault"
                 >
-                  ⚡ 设为独立子目录: update/apk/{{ editingApp.appId }}
+                  设为独立子目录: update/apk/{{ editingApp.appId }}
                 </button>
               </div>
-              <input type="text" v-model="editingApp.apkUploadDir" @input="onApkDirInput" placeholder="例如 update/apk/com.example.app" />
+              <input type="text" v-model="editingApp.apkUploadDir" @input="onApkDirInput" placeholder="例如 update/apk/com.example.app 或 sesame" />
               <span style="font-size: 11px; color: #64748B; margin-top: 2px; display: block;">
                 当前 App 基础子目录：<code>/{{ getEffectiveAppDir(editingApp) }}/</code>（不同应用独立子目录，避免不同 APK 混淆堆叠）
               </span>
@@ -639,7 +662,8 @@ export default {
     },
     appsUpdates: {},
     editingApp: null,
-    isNewApp: false
+    isNewApp: false,
+    changelogTab: "edit"
   }),
 
   created() {
@@ -805,6 +829,7 @@ export default {
     },
 
     createAppUpdate() {
+      this.changelogTab = "edit";
       this.editingApp = {
         appId: "",
         appName: "",
@@ -820,13 +845,87 @@ export default {
     },
 
     editAppUpdate(id, app) {
+      this.changelogTab = "edit";
       this.editingApp = {
         appId: id,
-        apkUploadDir: app.apkUploadDir || `update/apk/${id}`,
-        _dirCustomized: true,
-        ...JSON.parse(JSON.stringify(app))
+        ...JSON.parse(JSON.stringify(app)),
+        apkUploadDir: (app.apkUploadDir !== undefined && app.apkUploadDir !== "") ? app.apkUploadDir : `update/apk/${id}`,
+        _dirCustomized: true
       };
       this.isNewApp = false;
+    },
+
+    renderMarkdown(text) {
+      if (!text || !text.trim()) {
+        return '<p style="color:#94A3B8;font-style:italic;margin:6px 0;">暂无更新日志内容，请在“编辑”选项卡中填写...</p>';
+      }
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      html = html.replace(/^### (.*$)/gim, '<h5 style="margin:8px 0 4px;font-size:13px;font-weight:700;color:#0F172A;">$1</h5>');
+      html = html.replace(/^## (.*$)/gim, '<h4 style="margin:10px 0 4px;font-size:14px;font-weight:700;color:#0F172A;">$1</h4>');
+      html = html.replace(/^# (.*$)/gim, '<h3 style="margin:12px 0 6px;font-size:15px;font-weight:700;color:#0F172A;">$1</h3>');
+      html = html.replace(/\*\*(.*?)\*\*/gim, '<strong style="color:#0F172A;">$1</strong>');
+      html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+      html = html.replace(/`([^`]+)`/gim, '<code style="background:#F1F5F9;color:#E11D48;padding:2px 6px;border-radius:4px;font-size:11px;font-family:monospace;">$1</code>');
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener" style="color:#2563EB;text-decoration:underline;">$1</a>');
+      
+      const lines = html.split('\n');
+      let inList = false;
+      let result = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+          if (!inList) {
+            result.push('<ul style="margin:4px 0;padding-left:20px;line-height:1.6;color:#334155;">');
+            inList = true;
+          }
+          result.push(`<li style="margin-bottom:3px;">${trimmed.substring(2)}</li>`);
+        } else {
+          if (inList) {
+            result.push('</ul>');
+            inList = false;
+          }
+          if (trimmed.length > 0) {
+            result.push(`<p style="margin:4px 0;line-height:1.6;color:#334155;">${line}</p>`);
+          }
+        }
+      }
+      if (inList) result.push('</ul>');
+      return result.join('');
+    },
+
+    insertMdPrefix(prefix) {
+      if (!this.editingApp) return;
+      const cur = this.editingApp.updateLog || "";
+      if (cur && !cur.endsWith("\n")) {
+        this.editingApp.updateLog = cur + "\n" + prefix;
+      } else {
+        this.editingApp.updateLog = cur + prefix;
+      }
+      this.$nextTick(() => {
+        const ta = this.$refs.changelogTextarea;
+        if (ta) ta.focus();
+      });
+    },
+
+    insertMdWrap(before, after) {
+      if (!this.editingApp) return;
+      const ta = this.$refs.changelogTextarea;
+      const cur = this.editingApp.updateLog || "";
+      if (!ta) {
+        this.editingApp.updateLog = cur + before + "内容" + after;
+        return;
+      }
+      const start = ta.selectionStart || cur.length;
+      const end = ta.selectionEnd || cur.length;
+      const selected = cur.substring(start, end) || "文本";
+      this.editingApp.updateLog = cur.substring(0, start) + before + selected + after + cur.substring(end);
+      this.$nextTick(() => {
+        ta.focus();
+      });
     },
 
     deleteAppUpdate(id) {
@@ -1658,7 +1757,7 @@ export default {
   font-weight: 500;
 }
 
-.form-group input,
+.form-group input:not([type="checkbox"]):not([type="radio"]),
 .form-group textarea {
   width: 100%;
   padding: 8px 10px;
@@ -1684,12 +1783,140 @@ export default {
   margin-bottom: 16px;
 }
 
+.force-update-wrap {
+  margin: 8px 0 14px 0;
+  padding: 8px 12px;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+}
+
 .checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #1E293B !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  margin: 0 !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  accent-color: #2563EB;
   cursor: pointer;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+/* Changelog Markdown UI 样式美化 */
+.changelog-group {
+  margin-bottom: 14px;
+}
+
+.changelog-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.changelog-tabs {
+  display: flex;
+  gap: 4px;
+  background: #E2E8F0;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.tab-pill {
+  padding: 2px 10px;
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: #64748B;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.tab-pill.active {
+  background: #FFFFFF;
+  color: #0F172A;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.changelog-editor-card {
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background: #FFFFFF;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.changelog-editor-card:focus-within {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.changelog-quick-tools {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.tool-btn {
+  padding: 2px 8px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tool-btn:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+  border-color: #CBD5E1;
+}
+
+.changelog-textarea {
+  width: 100% !important;
+  border: none !important;
+  outline: none !important;
+  padding: 10px 12px !important;
+  font-size: 12px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  line-height: 1.6 !important;
+  color: #1E293B !important;
+  box-sizing: border-box !important;
+  resize: vertical !important;
+  min-height: 85px !important;
+}
+
+.changelog-preview-card {
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  background: #F8FAFC;
+  padding: 10px 14px;
+  min-height: 105px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #334155;
+  box-sizing: border-box;
 }
 
 .package-edit-card {
