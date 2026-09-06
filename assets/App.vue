@@ -674,11 +674,9 @@ export default {
     },
 
     refreshCurrentDir() {
-      if (this.dirCache) {
-        this.dirCache.delete(this.cwd);
-      }
+      this.invalidateDirCache(this.cwd);
       this.fetchFiles(true);
-      this.fetchStorageStats();
+      this.fetchStorageStats(true);
     },
 
     sortFiles() {
@@ -714,32 +712,102 @@ export default {
         this.showBlankContextMenu = false;
         const uploadUrl = `/api/write/items/${this.cwd}${folderName}/_$folder$`;
         await axios.put(uploadUrl, "");
-        if (this.dirCache) this.dirCache.clear();
+        this.invalidateDirCache(this.cwd);
         this.fetchFiles(true);
-        this.fetchStorageStats();
+        this.fetchStorageStats(true);
       } catch (error) {
         console.log(`Create folder failed`);
+      }
+    },
+
+    getDirCache(dir) {
+      const now = Date.now();
+      // 1. 优先从内存 Map 读取 (0ms 瞬时响应)
+      if (this.dirCache && this.dirCache.has(dir)) {
+        const item = this.dirCache.get(dir);
+        if (item && (now - item.time < 1800000)) { // 30 分钟长期持久缓存
+          return item;
+        }
+      }
+      // 2. 从 sessionStorage 读取 (页面刷新/跨组件跳转持久保留)
+      try {
+        const stored = sessionStorage.getItem(`flaredrive_dircache_${dir}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && (now - parsed.time < 1800000)) {
+            if (this.dirCache) this.dirCache.set(dir, parsed);
+            return parsed;
+          }
+        }
+      } catch (e) {}
+      return null;
+    },
+
+    setDirCache(dir, files, folders) {
+      const now = Date.now();
+      const payload = {
+        files: [...files],
+        folders: [...folders],
+        time: now
+      };
+      if (this.dirCache) {
+        if (this.dirCache.has(dir)) {
+          this.dirCache.delete(dir);
+        } else if (this.dirCache.size >= 50) {
+          const oldestKey = this.dirCache.keys().next().value;
+          this.dirCache.delete(oldestKey);
+        }
+        this.dirCache.set(dir, payload);
+      }
+      try {
+        sessionStorage.setItem(`flaredrive_dircache_${dir}`, JSON.stringify(payload));
+      } catch (e) {}
+    },
+
+    invalidateDirCache(dir = null) {
+      if (dir === null) {
+        if (this.dirCache) this.dirCache.clear();
+        try {
+          const keysToRemove = [];
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (k && k.startsWith("flaredrive_dircache_")) {
+              keysToRemove.push(k);
+            }
+          }
+          keysToRemove.forEach(k => sessionStorage.removeItem(k));
+        } catch (e) {}
+      } else {
+        if (this.dirCache) this.dirCache.delete(dir);
+        try {
+          sessionStorage.removeItem(`flaredrive_dircache_${dir}`);
+        } catch (e) {}
       }
     },
 
     async fetchFiles(forceRefresh = false) {
       const currentDir = this.cwd;
       const now = Date.now();
-      if (!forceRefresh && this.dirCache && this.dirCache.has(currentDir)) {
-        const cached = this.dirCache.get(currentDir);
-        // 缓存有效时长 120 秒，杜绝重复加载
-        if (cached && (now - cached.time < 120000)) {
+
+      // SWR (Stale-While-Revalidate) 极速长缓存策略
+      if (!forceRefresh) {
+        const cached = this.getDirCache(currentDir);
+        if (cached) {
           this.files = [...cached.files];
           this.folders = [...cached.folders];
           this.sortFiles();
           this.loading = false;
-          return;
+          // 3 分钟以内直接视为新鲜缓存，完全不发网络请求，0 R2 开销
+          if (now - cached.time < 180000) {
+            return;
+          }
+          // 超过 3 分钟但小于 30 分钟的，先秒开展示，再后台静默请求更新
         }
       }
 
-      this.files = [];
-      this.folders = [];
-      this.loading = true;
+      if (!this.files.length && !this.folders.length) {
+        this.loading = true;
+      }
       try {
         const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
         const headers = token ? { "Authorization": `Bearer ${token}` } : {};
@@ -755,20 +823,7 @@ export default {
         this.sortFiles();
         this.loading = false;
 
-        // 存入前端 LRU 缓存，严格限制上限为 50 个目录
-        if (this.dirCache) {
-          if (this.dirCache.has(currentDir)) {
-            this.dirCache.delete(currentDir);
-          } else if (this.dirCache.size >= 50) {
-            const oldestKey = this.dirCache.keys().next().value;
-            this.dirCache.delete(oldestKey);
-          }
-          this.dirCache.set(currentDir, {
-            files: [...this.files],
-            folders: [...this.folders],
-            time: now
-          });
-        }
+        this.setDirCache(currentDir, this.files, this.folders);
       } catch (err) {
         this.loading = false;
       }
@@ -841,16 +896,16 @@ export default {
       if (newName === null) return;
       if (newName === "") newName = this.clipboard.split("/").pop();
       await this.copyPaste(this.clipboard, `${this.cwd}${newName}`);
-      if (this.dirCache) this.dirCache.clear();
+      this.invalidateDirCache(this.cwd);
       this.fetchFiles(true);
-      this.fetchStorageStats();
+      this.fetchStorageStats(true);
     },
 
     async processUploadQueue() {
       if (!this.uploadQueue.length) {
-        if (this.dirCache) this.dirCache.clear();
+        this.invalidateDirCache(this.cwd);
         this.fetchFiles(true);
-        this.fetchStorageStats();
+        this.fetchStorageStats(true);
         this.uploadProgress = null;
         return;
       }
@@ -901,9 +956,9 @@ export default {
     async removeFile(key) {
       if (!window.confirm(`确定要删除 ${key} 吗？`)) return;
       await axios.delete(`/api/write/items/${key}`);
-      if (this.dirCache) this.dirCache.clear();
+      this.invalidateDirCache(this.cwd);
       this.fetchFiles(true);
-      this.fetchStorageStats();
+      this.fetchStorageStats(true);
     },
 
     async renameFile(key) {
@@ -913,8 +968,9 @@ export default {
       const targetPath = `${this.cwd}${newName}`;
       await this.copyPaste(key, targetPath);
       await axios.delete(`/api/write/items/${key}`);
-      if (this.dirCache) this.dirCache.clear();
+      this.invalidateDirCache(this.cwd);
       this.fetchFiles(true);
+      this.fetchStorageStats(true);
     },
 
     // =========================================================================
@@ -1159,14 +1215,12 @@ export default {
           await axios.delete(`/api/write/items/${sourceKey}`);
         }
 
-        if (this.dirCache) {
-          this.dirCache.delete(this.cwd);
-          this.dirCache.delete(targetDir);
-          this.dirCache.delete(normalizedPath);
-        }
+        this.invalidateDirCache(this.cwd);
+        this.invalidateDirCache(targetDir);
+        this.invalidateDirCache(normalizedPath);
         this.search = "";
         await this.fetchFiles(true);
-        this.fetchStorageStats();
+        this.fetchStorageStats(true);
         this.loading = false;
         alert(`已成功移动到: /${normalizedPath}`);
       } catch (error) {
@@ -1241,14 +1295,34 @@ export default {
       this.uploadFilesToDir(files, this.cwd);
     },
 
-    fetchStorageStats() {
+    fetchStorageStats(forceRefresh = false) {
+      const now = Date.now();
+      if (!forceRefresh) {
+        try {
+          const cached = sessionStorage.getItem("flaredrive_storage_stats");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            // 10 分钟持久缓存容量统计，避免频繁读取 R2 元数据
+            if (parsed && (now - (parsed._cacheTime || 0) < 600000)) {
+              this.storageStats = parsed;
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
       axios.get("/api/storage/usage")
         .then(res => {
           if (res.data) {
-            this.storageStats = {
+            const data = {
               ...res.data,
-              loading: false
+              loading: false,
+              _cacheTime: Date.now()
             };
+            this.storageStats = data;
+            try {
+              sessionStorage.setItem("flaredrive_storage_stats", JSON.stringify(data));
+            } catch (e) {}
           }
         })
         .catch(err => {
@@ -1262,9 +1336,12 @@ export default {
       sessionStorage.removeItem("flaredrive_token");
       this.isLoggedIn = false;
       alert("已成功退出管理员登录！");
-      if (this.dirCache) this.dirCache.clear();
+      this.invalidateDirCache();
+      try {
+        sessionStorage.removeItem("flaredrive_storage_stats");
+      } catch (e) {}
       this.fetchFiles(true);
-      this.fetchStorageStats();
+      this.fetchStorageStats(true);
     },
 
     onFooterAdminClick() {

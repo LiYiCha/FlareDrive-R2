@@ -745,15 +745,33 @@ export default {
       window.location.href = "/";
     },
 
-    fetchStorageStats() {
+    fetchStorageStats(forceRefresh = false) {
+      const now = Date.now();
+      if (!forceRefresh) {
+        try {
+          const cached = sessionStorage.getItem("flaredrive_storage_stats");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && (now - (parsed._cacheTime || 0) < 300000)) {
+              this.storageStats = parsed;
+              return;
+            }
+          }
+        } catch (e) {}
+      }
       this.storageStats.loading = true;
       axios.get("/api/storage/usage")
         .then(res => {
           if (res.data) {
-            this.storageStats = {
+            const data = {
               ...res.data,
-              loading: false
+              loading: false,
+              _cacheTime: Date.now()
             };
+            this.storageStats = data;
+            try {
+              sessionStorage.setItem("flaredrive_storage_stats", JSON.stringify(data));
+            } catch (e) {}
           }
         })
         .catch(err => {
@@ -768,10 +786,15 @@ export default {
       axios.post("/api/storage/recalculate")
         .then(res => {
           if (res.data.success) {
-            this.storageStats = {
+            const data = {
               ...res.data.stats,
-              loading: false
+              loading: false,
+              _cacheTime: Date.now()
             };
+            this.storageStats = data;
+            try {
+              sessionStorage.setItem("flaredrive_storage_stats", JSON.stringify(data));
+            } catch (e) {}
             alert("容量校准成功！");
           }
         })

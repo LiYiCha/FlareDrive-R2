@@ -70,7 +70,7 @@ export async function onRequestGet(context: any) {
     return new Response(JSON.stringify({ results, query }), {
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=10"
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=120"
       }
     });
   } catch (e: any) {

@@ -154,7 +154,10 @@ export async function onRequestGet(context: any) {
       ...stats,
       kvStats
     }), {
-      headers: { "Content-Type": "application/json" }
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=300"
+      }
     });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.toString() }), {

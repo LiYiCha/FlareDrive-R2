@@ -46,7 +46,7 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify({ value: objKeys, folders }), {
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=5, stale-while-revalidate=30"
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=600"
       },
     });
   } catch (e) {
