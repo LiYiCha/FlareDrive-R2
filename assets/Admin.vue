@@ -526,6 +526,9 @@
                     <div class="apk-dropzone-prompt">
                       <strong>点击选择或直接将 APK 安装包拖拽到此处</strong>
                       <span>自动上传至 <code>/{{ getPackageUploadDir(pkg) }}/</code> 目录、自动提取文件名与校验码</span>
+                      <button type="button" class="btn-mobile-select-apk" @click.stop="triggerApkSelect(idx)">
+                        📱 点击从手机选取 APK 文件
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2308,14 +2311,129 @@ export default {
   color: #B45309;
 }
 
+.btn-mobile-select-apk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 10px 18px;
+  background: #2563EB;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  transition: all 0.15s ease;
+}
+
+.btn-mobile-select-apk:hover {
+  background: #1D4ED8;
+  transform: translateY(-1px);
+}
+
 @media (max-width: 768px) {
+  /* 顶部导航与 Header */
+  .dash-header-inner {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .dash-title {
+    font-size: 15px;
+  }
+  .dash-edge-badge {
+    display: none;
+  }
+  .dash-actions {
+    gap: 6px;
+  }
+  .btn-dash-back, .btn-dash-logout {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  /* 主体区域与 Tab 栏横向平滑滑动 */
+  .dash-main {
+    padding: 14px 10px 40px 10px;
+  }
+  .dash-tabs-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .dash-tab-btn {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  /* 指标卡片单列布局 */
   .stat-overview-grid,
   .stat-card-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
+  .metric-card {
+    padding: 14px;
+  }
+
+  /* 应用版本列表与编辑卡片自适应 */
+  .app-cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .section-title-btn {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .section-title-btn button {
+    width: 100%;
+  }
+
+  /* 表单单列自适应 */
+  .form-group-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .form-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .form-header-row button {
+    width: 100%;
+  }
+
+  /* 弹窗小屏防截断与自适应 */
+  .admin-modal-overlay {
+    padding: 10px;
+    align-items: flex-start;
+  }
+  .admin-modal-card {
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 16px;
+    margin-top: 10px;
+  }
+
   .sync-action-box {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* 底部操作按钮 */
+  .form-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .form-actions button {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
   }
 }
 </style>
