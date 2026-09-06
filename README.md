@@ -57,7 +57,9 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 | `PUBURL` | `https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev` | ✅ 必填 | R2 公共存储桶直链地址（支持 r2.dev 或绑定自定义域名） |
 | `admin_123456` | `*` | ✅ 必填 | 管理员账号密码与权限，格式统一为 `用户名_密码`，值为 `*`（全局权限） |
 | `JWT_SECRET` | `your_random_secret_token_12345` | ✅ 必填 | 登录 Token 签名密钥（用于生成及校验管理员加密 JWT，切勿泄露） |
-| `GUEST` | `public/` | ❌ 可选 | 游客允许写入的公开目录 |
+| `ALLOW_PUBLIC_UPDATE` | `true` 或 `false` | ❌ 可选 | 软件更新目录公开下载开关。**默认 true（允许匿名直链下载）**；设为 `false` 可严禁访客下载更新包（避免被未授权拉取） |
+| `GUEST` | `public,share` | ❌ 可选 | 访客免登录公开访问与下载的目录列表（支持逗号分隔，系统内置斜杠自动容错，如 `public` 或 `update`） |
+| `PUBLIC_PATHS` | `download,apk` | ❌ 可选 | 补充免鉴权公开直链目录（等同于 GUEST 的只读免登访问白名单，支持逗号分隔） |
 | `user1_123456` | `user1/,shared/` | ❌ 可选 | 普通用户及其可读写目录，格式为 `用户名_密码` |
 | `CF_ACCOUNT_ID` | `d123456789abcdef` | ❌ 可选 | Cloudflare Account ID（仅用于启用 S3 跨桶高级运维管理） |
 | `AWS_ACCESS_KEY_ID` | `r2_s3_token_id` | ❌ 可选 | R2 的 S3 API Access Key ID（配合跨桶高级运维） |
@@ -118,8 +120,15 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
    - 在安装包卡片直接拖入或选择 `.apk` 文件，系统自动异步上传至指定子目录下。
    - 自动提取文件名、计算文件大小及 MD5 哈希校验码，并自动生成 `/raw/update/apk/...` 标准直链地址。
 3. **客户端检查更新接口**：
-   - 请求地址：`GET /api/update/check?appId={your_app_id}`
+   - 请求地址：`GET /api/update?app_id={your_app_id}`（同时兼容 `GET /api/update/check?appId={your_app_id}`）
    - 返回最新版本号、Version Code、更新日志、是否强制更新以及各关联安装包的直链与 MD5 校验值。
+4. **下载鉴权与环境变量控制 (解决 401 权限问题)**：
+   - 默认策略：更新安装包（`/raw/update/...`）**默认开启免登录公开下载**与 CDN 强缓存加速，终端 App 可即刻静默检测与断点续传。
+   - 环境变量开关：在 Cloudflare Pages 设置环境变量 `ALLOW_PUBLIC_UPDATE = false` 可一键关闭自动公开；关闭后可通过 `GUEST = update` 或 `PUBLIC_PATHS = update` 独立管控白名单。
+   - 容错规范化：系统已内置斜杠自动规范化，无论在环境变量写 `update`、`/update` 还是 `/update/` 均能精准识别，彻底告别 401 鉴权拦截。
+5. **版本说明富文本 Markdown 渲染**：
+   - 发布更新时的「更新日志/版本说明」全面支持标准 Markdown 语法（标题、加粗、斜体、列表、代码块与超链接）。
+   - 配套的 Android `updater` 客户端内置了 `MarkdownUtils`，在系统更新弹窗与下载管理中心内直接以富文本原生呈现，超链接支持原生点击跳转浏览器。
 
 ### ⚙️ 自定义配置
 
