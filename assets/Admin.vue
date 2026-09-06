@@ -247,6 +247,70 @@
             </div>
           </div>
 
+          <!-- Cloudflare 官方 R2 账单真实指标面板 (GraphQL API，非本地计数) -->
+          <div class="dash-card-header" style="margin-top: 32px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <h3 style="margin: 0;">Cloudflare 官方账单 R2 真实操作指标 (GraphQL API)</h3>
+                <span class="dash-card-subtitle">直接对接 Cloudflare 计费后台拉取的权威真实 A 类/B 类调用次数，非内部埋点</span>
+              </div>
+              <button class="btn-sm-primary" :disabled="officialR2.loading" @click="fetchOfficialR2Metrics">
+                {{ officialR2.loading ? '正在调取官方 API...' : '从 Cloudflare 官方拉取真实 A/B 数据' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 未配置 CF_ACCOUNT_ID / CF_API_TOKEN 提示 -->
+          <div v-if="officialR2.loaded && !officialR2.data?.configured" style="margin-top: 12px; padding: 14px 16px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; font-size: 13px; color: #1E40AF; line-height: 1.6;">
+            <strong>📌 如何直接获取 Cloudflare 官方权威 A/B 数据？</strong>
+            <p style="margin: 4px 0 0 0;">
+              Cloudflare 官方提供了统一的 <strong>GraphQL Analytics API</strong> 直接记录每一个 Bucket 产生的权威 Class A 和 Class B 次数。<br>
+              若需一键调取，请在 Cloudflare Pages <code>Settings → Environment Variables</code> 中添加：<br>
+              1. <code>CF_ACCOUNT_ID</code>: 您的 Cloudflare 账户 ID (在控制台概览右侧可复制)<br>
+              2. <code>CF_API_TOKEN</code>: 具有 <code>Account Analytics: Read</code> 权限的 API 令牌<br>
+              保存后重新部署，即可在此直接拉取官方月度计费单中的真实调用数！
+            </p>
+          </div>
+
+          <!-- 官方数据展示面板 -->
+          <div v-if="officialR2.loaded && officialR2.data?.success" style="margin-top: 14px;">
+            <div class="stat-card-grid">
+              <div class="stat-mini-card" style="border-top: 3px solid #2563EB;">
+                <div class="card-label">官方真实 Class A 操作数</div>
+                <div class="card-value" style="color: #2563EB;">
+                  {{ officialR2.data.officialClassA }} <span class="card-unit">次</span>
+                </div>
+                <div class="card-desc">Cloudflare 官方计费统计 (写入/List/修改)</div>
+              </div>
+
+              <div class="stat-mini-card" style="border-top: 3px solid #10B981;">
+                <div class="card-label">官方真实 Class B 操作数</div>
+                <div class="card-value" style="color: #10B981;">
+                  {{ officialR2.data.officialClassB }} <span class="card-unit">次</span>
+                </div>
+                <div class="card-desc">Cloudflare 官方计费统计 (读取/下载/元数据)</div>
+              </div>
+
+              <div class="stat-mini-card">
+                <div class="card-label">官方总请求数 / 流量</div>
+                <div class="card-value">
+                  {{ officialR2.data.totalRequests }} <span class="card-unit">次</span>
+                </div>
+                <div class="card-desc">出网流量：{{ formatSize(officialR2.data.totalBytes || 0) }}</div>
+              </div>
+            </div>
+
+            <!-- 操作明细表格 -->
+            <div v-if="officialR2.data.actionBreakdown?.length" style="margin-top: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 16px;">
+              <strong style="font-size: 13px; color: #1E293B;">官方操作类型明细分布 (最近 {{ officialR2.data.timeRange?.days || 30 }} 天)：</strong>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                <span v-for="item in officialR2.data.actionBreakdown" :key="item.actionType" style="background: #fff; border: 1px solid #CBD5E1; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #334155;">
+                  <strong>{{ item.actionType }}</strong> ({{ item.classType }} 类): <strong>{{ item.requests }}</strong> 次
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div class="sync-action-box">
             <div class="sync-info-text">
               <strong>全桶校准时间：</strong>
@@ -328,6 +392,29 @@
                 <input type="checkbox" v-model="editingApp.isForceUpdate" />
                 <span>强制更新 (锁定主程序需更新后才能继续运行)</span>
               </label>
+            </div>
+            <!-- CDN 边缘缓存自定义控制 -->
+            <div class="form-group" style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px 16px; border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <label class="checkbox-label" style="margin: 0; cursor: pointer;">
+                  <input type="checkbox" v-model="editingApp.cdnCacheEnabled" />
+                  <span style="font-weight: 600; color: #1E293B;">启用 APK 安装包 CDN 边缘缓存</span>
+                </label>
+                <div v-if="editingApp.cdnCacheEnabled" style="display: flex; align-items: center; gap: 8px;">
+                  <label style="margin: 0; font-size: 13px; color: #475569;">自定义缓存时长：</label>
+                  <select v-model="editingApp.cdnCacheTtl" style="padding: 4px 8px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 13px; background: #fff;">
+                    <option :value="0">不缓存 (0秒，每次回源)</option>
+                    <option :value="600">10 分钟 (600秒)</option>
+                    <option :value="3600">1 小时 (3600秒)</option>
+                    <option :value="86400">1 天 (86400秒)</option>
+                    <option :value="604800">7 天 (604800秒)</option>
+                    <option :value="2592000">30 天 (2592000秒)</option>
+                  </select>
+                </div>
+              </div>
+              <p style="margin: 6px 0 0 0; font-size: 12px; color: #64748B; line-height: 1.5;">
+                💡 <strong>提示</strong>：关闭缓存或设为“不缓存”时，下载请求将实时穿透至存储桶，确保您更换安装包后客户端<strong>100% 立即下载到新版本</strong>；开启并设定时长后，将由 Cloudflare 全球 CDN 边缘节点代理拦截，免除 R2 读取与流量消耗。
+              </p>
             </div>
             <div class="form-group changelog-group">
               <div class="changelog-header-row">
@@ -663,7 +750,12 @@ export default {
     appsUpdates: {},
     editingApp: null,
     isNewApp: false,
-    changelogTab: "edit"
+    changelogTab: "edit",
+    officialR2: {
+      loading: false,
+      loaded: false,
+      data: null
+    }
   }),
 
   created() {
@@ -802,6 +894,24 @@ export default {
         .finally(() => this.storageLoading = false);
     },
 
+    fetchOfficialR2Metrics() {
+      this.officialR2.loading = true;
+      axios.get("/api/admin/metrics/r2?days=30")
+        .then(res => {
+          this.officialR2.loaded = true;
+          this.officialR2.data = res.data;
+          if (res.data?.error) {
+            alert("查询失败: " + res.data.error);
+          }
+        })
+        .catch(err => {
+          alert("拉取官方指标失败: " + (err.response?.data?.error || err.message));
+        })
+        .finally(() => {
+          this.officialR2.loading = false;
+        });
+    },
+
     fetchAppUpdates() {
       axios.get("/api/admin/update/publish")
         .then(res => {
@@ -860,6 +970,8 @@ export default {
         latestVersionName: "1.0.0",
         updateLog: "",
         isForceUpdate: false,
+        cdnCacheEnabled: false,
+        cdnCacheTtl: 0,
         apkUploadDir: "update/apk",
         _dirCustomized: false,
         packages: []
@@ -872,6 +984,8 @@ export default {
       this.editingApp = {
         appId: id,
         ...JSON.parse(JSON.stringify(app)),
+        cdnCacheEnabled: !!app.cdnCacheEnabled,
+        cdnCacheTtl: typeof app.cdnCacheTtl !== "undefined" ? app.cdnCacheTtl : 0,
         apkUploadDir: (app.apkUploadDir !== undefined && app.apkUploadDir !== "") ? app.apkUploadDir : `update/apk/${id}`,
         _dirCustomized: true
       };

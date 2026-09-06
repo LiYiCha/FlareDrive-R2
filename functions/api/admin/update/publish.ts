@@ -28,7 +28,7 @@ export async function onRequestPost(context: any) {
     });
   }
 
-  const { appId, appName, latestVersionCode, latestVersionName, updateLog, isForceUpdate, apkUploadDir, packages, deleteAction } = body;
+  const { appId, appName, latestVersionCode, latestVersionName, updateLog, isForceUpdate, apkUploadDir, cdnCacheEnabled, cdnCacheTtl, packages, deleteAction } = body;
 
   try {
     // 2. 读取现有的更新配置
@@ -85,6 +85,8 @@ export async function onRequestPost(context: any) {
       updateLog: updateLog || "",
       isForceUpdate: !!isForceUpdate,
       apkUploadDir: apkUploadDir ? apkUploadDir.trim() : "",
+      cdnCacheEnabled: !!cdnCacheEnabled,
+      cdnCacheTtl: typeof cdnCacheTtl !== "undefined" ? parseInt(cdnCacheTtl, 10) : 0,
       packages: packages || [],
       lastUpdated: Date.now()
     };

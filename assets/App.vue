@@ -642,6 +642,7 @@ export default {
         { text: '按照大小递增排序' },
         { text: '按照大小递减排序' },
         { text: '粘贴文件到网盘' },
+        { text: '清空本地浏览器缓存' },
         { text: isAnime ? '切换壁纸: 卡通正男' : '切换壁纸: 二次元动漫' }
       ];
       if (this.isLoggedIn) {
@@ -725,16 +726,16 @@ export default {
       // 1. 优先从内存 Map 读取 (0ms 瞬时响应)
       if (this.dirCache && this.dirCache.has(dir)) {
         const item = this.dirCache.get(dir);
-        if (item && (now - item.time < 1800000)) { // 30 分钟长期持久缓存
+        if (item && (now - item.time < 86400000)) { // 浏览器内 24 小时长期持久缓存
           return item;
         }
       }
-      // 2. 从 sessionStorage 读取 (页面刷新/跨组件跳转持久保留)
+      // 2. 真正存储到浏览器持久存储 (localStorage) 中，即使完全关闭浏览器重新打开依然有效
       try {
-        const stored = sessionStorage.getItem(`flaredrive_dircache_${dir}`);
+        const stored = localStorage.getItem(`flaredrive_dircache_${dir}`) || sessionStorage.getItem(`flaredrive_dircache_${dir}`);
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (parsed && (now - parsed.time < 1800000)) {
+          if (parsed && (now - parsed.time < 86400000)) {
             if (this.dirCache) this.dirCache.set(dir, parsed);
             return parsed;
           }
@@ -760,7 +761,9 @@ export default {
         this.dirCache.set(dir, payload);
       }
       try {
-        sessionStorage.setItem(`flaredrive_dircache_${dir}`, JSON.stringify(payload));
+        const serialized = JSON.stringify(payload);
+        localStorage.setItem(`flaredrive_dircache_${dir}`, serialized);
+        sessionStorage.setItem(`flaredrive_dircache_${dir}`, serialized);
       } catch (e) {}
     },
 
@@ -769,17 +772,21 @@ export default {
         if (this.dirCache) this.dirCache.clear();
         try {
           const keysToRemove = [];
-          for (let i = 0; i < sessionStorage.length; i++) {
-            const k = sessionStorage.key(i);
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
             if (k && k.startsWith("flaredrive_dircache_")) {
               keysToRemove.push(k);
             }
           }
-          keysToRemove.forEach(k => sessionStorage.removeItem(k));
+          keysToRemove.forEach(k => {
+            localStorage.removeItem(k);
+            sessionStorage.removeItem(k);
+          });
         } catch (e) {}
       } else {
         if (this.dirCache) this.dirCache.delete(dir);
         try {
+          localStorage.removeItem(`flaredrive_dircache_${dir}`);
           sessionStorage.removeItem(`flaredrive_dircache_${dir}`);
         } catch (e) {}
       }
@@ -869,6 +876,16 @@ export default {
           break;
         case "粘贴文件到网盘":
           return this.pasteFile();
+        case "清空本地浏览器缓存":
+          this.invalidateDirCache();
+          try {
+            localStorage.removeItem("flaredrive_storage_stats");
+            sessionStorage.removeItem("flaredrive_storage_stats");
+          } catch (e) {}
+          this.fetchFiles(true);
+          this.fetchStorageStats(true);
+          alert("本地浏览器缓存已清空，已重新从云端同步最新数据！");
+          return;
         case "管理控制台":
           window.location.href = "/admin.html";
           return;
