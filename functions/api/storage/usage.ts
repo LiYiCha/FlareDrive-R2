@@ -53,10 +53,20 @@ export async function onRequestGet(context: any) {
   try {
     const metadataObj = await bucket.get(METADATA_PATH);
     if (!metadataObj) {
-      // 第一次运行，执行初始化扫描
-      const stats = await recalculateStorage(bucket, quotaBytes);
-      return new Response(JSON.stringify(stats), {
-        headers: { "Content-Type": "application/json" }
+      // 首次未生成元数据时，极速响应基础结构，不阻塞主线程，后台异步执行扫描
+      const initialStats = {
+        usedBytes: 0,
+        quotaBytes: quotaBytes,
+        fileCount: 0,
+        folderCount: 0,
+        lastUpdated: null,
+        initialized: false
+      };
+      if (context.waitUntil) {
+        context.waitUntil(recalculateStorage(bucket, quotaBytes).catch(() => {}));
+      }
+      return new Response(JSON.stringify(initialStats), {
+        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=10" }
       });
     }
 

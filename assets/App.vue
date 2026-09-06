@@ -7,7 +7,9 @@
   >
     <progress v-if="uploadProgress !== null" :value="uploadProgress" max="100"></progress>
     <UploadPopup v-model="showUploadPopup" @upload="onUploadClicked" @createFolder="createFolder"></UploadPopup>
-    <button class="upload-button circle" @click="showUploadPopup = true">
+    <!-- 视图 1: 极简网盘文件浏览主视图 (Drive View) -->
+    <div v-if="currentView === 'drive'" class="view-content-wrapper">
+      <button class="upload-button circle" @click="showUploadPopup = true">
       <svg t="1741764069699" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
         p-id="24280" width="24" height="24">
         <path
@@ -182,6 +184,7 @@
     <div v-else-if="!filteredFiles.length && !filteredFolders.length" style="margin: 20px 0; text-align: center">
       <span style="font-size: 20px;">没有文件</span>
     </div>
+    </div>
 
     <!-- 上下文右键菜单 -->
     <Dialog v-model="showContextMenu">
@@ -298,112 +301,186 @@
       </div>
     </Dialog>
 
-    <!-- 控制台与系统管理面板 -->
-    <Dialog v-model="showAdminPanel">
-      <div class="admin-panel">
-        <div class="admin-header">
-          <div class="admin-header-title">
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
+    <!-- 视图 2: 独立全屏系统管理控制台 (Admin Dashboard View) -->
+    <div v-else-if="currentView === 'admin'" class="admin-dashboard-view">
+      <!-- 控制台顶栏 -->
+      <header class="dash-header">
+        <div class="dash-header-inner">
+          <div class="dash-brand">
+            <img src="/assets/homescreen.png" alt="FlareDrive" style="height: 26px" />
+            <div class="dash-title-wrap">
+              <h2 class="dash-title">FlareDrive 管理控制台</h2>
+              <span class="dash-edge-badge">
+                <span class="dash-dot"></span>
+                Cloudflare 边缘就绪
+              </span>
+            </div>
+          </div>
+
+          <div class="dash-actions">
+            <button class="btn-dash-back" @click="currentView = 'drive'" title="返回网盘文件列表">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+              <span>返回网盘</span>
+            </button>
+            <button class="btn-dash-logout" @click="logout" title="退出管理员登录">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>退出登录</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- 控制台主工作区 -->
+      <main class="dash-main-container">
+        <!-- 标签页导航栏 -->
+        <nav class="dash-nav-tabs">
+          <button class="dash-tab-btn" :class="{ active: activeTab === 'storage' }" @click="activeTab = 'storage'">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
             </svg>
-            <h3>控制台与系统运维监控</h3>
-          </div>
-          <div class="admin-header-actions">
-            <button class="btn-header-logout" @click="logout" title="安全退出管理员身份">退出登录</button>
-            <button class="btn-close-text" @click="showAdminPanel = false">关闭</button>
-          </div>
-        </div>
-        
-        <div class="admin-tabs">
-          <button :class="{ active: activeTab === 'storage' }" @click="activeTab = 'storage'">S3 运维与存储</button>
-          <button :class="{ active: activeTab === 'updates' }" @click="activeTab = 'updates'">App 版本管理</button>
-          <button :class="{ active: activeTab === 'defense' }" @click="activeTab = 'defense'">流量防御与审计</button>
-        </div>
+            <span>S3 运维与存储</span>
+          </button>
+          <button class="dash-tab-btn" :class="{ active: activeTab === 'updates' }" @click="activeTab = 'updates'">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            <span>App 版本管理</span>
+          </button>
+          <button class="dash-tab-btn" :class="{ active: activeTab === 'defense' }" @click="activeTab = 'defense'">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <span>流量防御与审计</span>
+          </button>
+        </nav>
 
         <!-- 标签页 1: S3 运维与存储容量管理 -->
-        <div v-if="activeTab === 'storage'" class="tab-content">
-          <div class="storage-panel-details">
-            <div class="panel-section-title">存储与对象统计</div>
-            <div class="stat-row">
-              <span>总存储额度 (Quota):</span> <strong>{{ formatSize(storageStats?.quotaBytes || 10737418240) }}</strong>
+        <div v-if="activeTab === 'storage'" class="dash-content-card">
+          <div class="dash-card-header">
+            <h3>存储空间与对象概览</h3>
+            <span class="dash-card-subtitle">实时监控 Cloudflare R2 存储桶对象分布及容量</span>
+          </div>
+          
+          <div class="stat-overview-grid">
+            <div class="metric-card">
+              <span class="metric-label">总存储配额 (Quota)</span>
+              <strong class="metric-val">{{ formatSize(storageStats?.quotaBytes || 10737418240) }}</strong>
+              <span class="metric-hint">免费级标准限额 10 GB</span>
             </div>
-            <div class="stat-row">
-              <span>已使用大小 (Used):</span> <strong>{{ storageStats?.loading ? '读取中...' : formatSize(storageStats?.usedBytes || 0) }}</strong>
+            <div class="metric-card">
+              <span class="metric-label">已使用容量 (Used)</span>
+              <strong class="metric-val">{{ storageStats?.loading ? '读取中...' : formatSize(storageStats?.usedBytes || 0) }}</strong>
+              <span class="metric-hint">已使用 {{ (((storageStats?.usedBytes || 0) / (storageStats?.quotaBytes || 10737418240)) * 100).toFixed(1) }}%</span>
             </div>
-            <div class="stat-row">
-              <span>文件总数 (Files):</span> <strong>{{ storageStats?.loading ? '...' : (storageStats?.fileCount || 0) }}</strong>
+            <div class="metric-card">
+              <span class="metric-label">文件对象总数 (Files)</span>
+              <strong class="metric-val">{{ storageStats?.loading ? '...' : (storageStats?.fileCount || 0) }}</strong>
+              <span class="metric-hint">存储桶内实际文件</span>
             </div>
-            <div class="stat-row">
-              <span>文件夹总数 (Folders):</span> <strong>{{ storageStats?.loading ? '...' : (storageStats?.folderCount || 0) }}</strong>
+            <div class="metric-card">
+              <span class="metric-label">文件夹占位总数 (Folders)</span>
+              <strong class="metric-val">{{ storageStats?.loading ? '...' : (storageStats?.folderCount || 0) }}</strong>
+              <span class="metric-hint">虚拟目录结构节点</span>
             </div>
-            <div class="stat-row">
-              <span>数据校准时间:</span> <span>{{ storageStats?.lastUpdated ? new Date(storageStats.lastUpdated).toLocaleString() : '首次使用，待全量校准' }}</span>
-            </div>
-            
-            <div class="panel-section-title" style="margin-top: 16px;">S3 操作指标与流量优势</div>
-            <div class="stat-card-grid">
-              <div class="stat-mini-card">
-                <div class="card-label">S3 A 类操作 (写入/变更)</div>
-                <div class="card-value">1,000,000 <span class="card-unit">次/月免费</span></div>
-                <div class="card-desc">PutObject / ListObjects / 分片上传</div>
-              </div>
-              <div class="stat-mini-card">
-                <div class="card-label">S3 B 类操作 (读取/检索)</div>
-                <div class="card-value">10,000,000 <span class="card-unit">次/月免费</span></div>
-                <div class="card-desc">GetObject / HeadObject / 元数据获取</div>
-              </div>
-              <div class="stat-mini-card">
-                <div class="card-label">外网出站流量 (Egress)</div>
-                <div class="card-value">$0.00 <span class="card-unit">永久免流量费</span></div>
-                <div class="card-desc">Cloudflare R2 原生零流量费架构</div>
-              </div>
-              <div class="stat-mini-card">
-                <div class="card-label">CDN 边缘缓存加速</div>
-                <div class="card-value">Cache Everything</div>
-                <div class="card-desc">直连 Anycast CDN，极大减少回源调用</div>
-              </div>
-            </div>
+          </div>
 
-            <div class="stat-tip-box">
-              <p>说明：当上传或删除文件时，系统会在 R2 中增量计算容量。若偶遇容量数据脱节，请点击下方按钮重新扫描全桶校准。</p>
+          <div class="dash-card-header" style="margin-top: 28px;">
+            <h3>S3 操作配额与网络流量指标</h3>
+            <span class="dash-card-subtitle">Cloudflare R2 API 免费额度与零出站流量费监控</span>
+          </div>
+
+          <div class="stat-card-grid">
+            <div class="stat-mini-card">
+              <div class="card-label">S3 A 类操作 (写入/变更)</div>
+              <div class="card-value">1,000,000 <span class="card-unit">次/月免费</span></div>
+              <div class="card-desc">PutObject / ListObjects / 分片上传 / 删除</div>
             </div>
-            
-            <button class="btn-action-primary" @click="recalculateStorage">重新扫描并校准存储大小</button>
+            <div class="stat-mini-card">
+              <div class="card-label">S3 B 类操作 (读取/检索)</div>
+              <div class="card-value">10,000,000 <span class="card-unit">次/月免费</span></div>
+              <div class="card-desc">GetObject / HeadObject / 元数据获取</div>
+            </div>
+            <div class="stat-mini-card">
+              <div class="card-label">外网出站流量 (Egress Bandwidth)</div>
+              <div class="card-value">$0.00 <span class="card-unit">永久免收流出流量费</span></div>
+              <div class="card-desc">Cloudflare 核心优势，无昂贵的带宽账单</div>
+            </div>
+            <div class="stat-mini-card">
+              <div class="card-label">Anycast CDN 边缘缓存加速</div>
+              <div class="card-value">Cache Everything</div>
+              <div class="card-desc">全球边缘就近命中，极大缩减回源与 B 类调用开销</div>
+            </div>
+          </div>
+
+          <div class="sync-action-box">
+            <div class="sync-info-text">
+              <strong>全桶校准时间：</strong>
+              <span>{{ storageStats?.lastUpdated ? new Date(storageStats.lastUpdated).toLocaleString() : '首次使用，等待执行全量校准' }}</span>
+              <p>上传或删除时系统会增量计算。若数据存在轻微偏差，可随时发起全桶扫描重新同步。</p>
+            </div>
+            <button class="btn-action-primary" :disabled="loading" @click="recalculateStorage">
+              {{ loading ? '正在全桶扫描计算中...' : '重新扫描并校准存储大小' }}
+            </button>
           </div>
         </div>
 
-        <!-- 标签页 2: App 更新管理 -->
-        <div v-if="activeTab === 'updates'" class="tab-content">
+        <!-- 标签页 2: App 版本发布与管理 -->
+        <div v-if="activeTab === 'updates'" class="dash-content-card">
           <div v-if="!editingApp" class="app-list-view">
             <div class="section-title-btn">
-              <h4>应用发布列表</h4>
-              <button class="btn-sm-primary" @click="createAppUpdate">发布新 App 版本</button>
+              <div>
+                <h3 style="margin:0;font-size:16px;">应用发布版本列表</h3>
+                <span class="dash-card-subtitle">为 Android 等配套客户端管理在线版本更新配置</span>
+              </div>
+              <button class="btn-sm-primary" @click="createAppUpdate">+ 发布新 App 版本</button>
             </div>
             
             <div v-if="Object.keys(appsUpdates).length === 0" class="empty-list-info">
-              暂无 App 更新发布配置。
+              暂无 App 更新发布配置，点击右上角按钮即可发布首个版本。
             </div>
-            <ul v-else class="app-update-list">
-              <li v-for="(app, id) in appsUpdates" :key="id" class="app-update-item">
-                <div class="app-item-info">
-                  <strong>{{ app.appName }}</strong> <span class="app-id-tag">({{ id }})</span>
-                  <div class="app-item-meta">
-                    最新版本: v{{ app.latestVersionName }} (Build {{ app.latestVersionCode }}) | 配套安装包: {{ app.packages ? app.packages.length : 0 }}
+            <div v-else class="app-cards-grid">
+              <div v-for="(app, id) in appsUpdates" :key="id" class="app-dash-card">
+                <div class="app-dash-card-header">
+                  <div class="app-title-area">
+                    <strong class="app-display-name">{{ app.appName }}</strong>
+                    <span class="app-id-tag">{{ id }}</span>
+                  </div>
+                  <span class="app-version-badge">v{{ app.latestVersionName }} (Build {{ app.latestVersionCode }})</span>
+                </div>
+                <div class="app-dash-card-body">
+                  <div class="app-meta-line">
+                    <span>关联安装包数：<strong>{{ app.packages ? app.packages.length : 0 }} 个</strong></span>
+                    <span>更新类型：<strong>{{ app.isForceUpdate ? '强制更新' : '普通更新' }}</strong></span>
+                  </div>
+                  <div v-if="app.updateLog" class="app-changelog-preview">
+                    <strong>更新日志：</strong> {{ app.updateLog }}
                   </div>
                 </div>
-                <div class="app-item-actions">
-                  <button @click="editAppUpdate(id, app)">编辑</button>
-                  <button class="btn-text-danger" @click="deleteAppUpdate(id)">删除</button>
+                <div class="app-dash-card-footer">
+                  <button class="btn-app-edit" @click="editAppUpdate(id, app)">编辑配置</button>
+                  <button class="btn-app-del" @click="deleteAppUpdate(id)">删除应用</button>
                 </div>
-              </li>
-            </ul>
+              </div>
+            </div>
           </div>
 
           <!-- 编辑 App 更新配置表单 -->
           <div v-else class="app-edit-view">
-            <h4 style="margin-top:0;margin-bottom:15px;">配置应用版本更新</h4>
+            <div class="form-header-row">
+              <h4 style="margin:0;font-size:16px;">配置应用版本更新</h4>
+              <button class="btn-sm-secondary" @click="editingApp = null">返回列表</button>
+            </div>
             <div class="form-group">
               <label>应用包名 (App ID) *</label>
               <input type="text" v-model="editingApp.appId" :disabled="!isNewApp" placeholder="例如 com.example.app" />
@@ -424,7 +501,7 @@
             </div>
             <div class="form-group">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="editingApp.isForceUpdate" /> 强制更新 (锁定主程序需更新才能运行)
+                <input type="checkbox" v-model="editingApp.isForceUpdate" /> 强制更新 (锁定主程序需更新后才能继续运行)
               </label>
             </div>
             <div class="form-group">
@@ -440,7 +517,7 @@
               </div>
               
               <div v-if="editingApp.packages.length === 0" class="empty-packages">
-                暂未关联任何 APK 包（支持同时上传原版、Xposed模块版、LSPatch版等配套组件）。
+                暂未关联任何 APK 包（支持同时关联原版、Xposed模块版、LSPatch版等配套组件）。
               </div>
               
               <div v-for="(pkg, idx) in editingApp.packages" :key="idx" class="package-edit-card">
@@ -491,23 +568,26 @@
             </div>
 
             <div class="form-actions">
-              <button class="btn-primary" @click="saveAppUpdate">保存并发布</button>
-              <button class="btn-secondary" @click="editingApp = null">返回列表</button>
+              <button class="btn-primary" @click="saveAppUpdate">保存并发布新版本</button>
+              <button class="btn-secondary" @click="editingApp = null">取消并返回</button>
             </div>
           </div>
         </div>
 
         <!-- 标签页 3: 流量防御与审计 -->
-        <div v-if="activeTab === 'defense'" class="tab-content">
-          <div class="defense-panel">
-            <div class="panel-section-title">防恶意刷量与热点防护机制</div>
-            
+        <div v-if="activeTab === 'defense'" class="dash-content-card">
+          <div class="dash-card-header">
+            <h3>防恶意刷量与网络安全防护</h3>
+            <span class="dash-card-subtitle">利用 Cloudflare 边缘计算与网络安全规则保障服务稳定性</span>
+          </div>
+
+          <div class="defense-cards-list">
             <div class="defense-card">
               <div class="defense-card-header">
                 <span class="defense-tag">边缘缓存</span>
-                <strong>/raw/ 资源 Edge Cache Everything</strong>
+                <strong>/raw/ 资源 Edge Cache Everything 优化</strong>
               </div>
-              <p>公开下载的大文件与安装包通过 Cloudflare CDN 全球边缘节点缓存，重复下载直接命中边缘，免除 R2 的 Class B 操作数消耗与源站开销。</p>
+              <p>公开下载的大文件与安装包建议在 Cloudflare 规则中开启 "Cache Everything"，通过 Edge TTL 拦截高频刷量，由全球 CDN 边缘节点直接分发，完全免除 R2 的 Class B 操作数消耗与源站开销。</p>
             </div>
 
             <div class="defense-card">
@@ -515,21 +595,20 @@
                 <span class="defense-tag">WAF 限流</span>
                 <strong>Cloudflare Rate Limiting 速率限制</strong>
               </div>
-              <p>在 Cloudflare 控制台「安全性」->「WAF」中配置频率限制规则（如单 IP 10 秒内请求超 60 次触发人机质询），防范脚本暴力爬取与恶意遍历。</p>
+              <p>在 Cloudflare 控制台「安全性」->「WAF」中为 <code>/api/*</code> 配置速率限制规则（如单 IP 10 秒内请求超 60 次触发人机质询），有效防范脚本暴力扫描与遍历攻击。</p>
             </div>
 
-            <div class="panel-section-title" style="margin-top: 18px;">访问日志记录与架构规划</div>
             <div class="defense-card">
               <div class="defense-card-header">
                 <span class="defense-tag">日志方案</span>
-                <strong>标准日志处理方案 (避免内存溢出)</strong>
+                <strong>访问日志标准流式处理架构 (零内存泄露)</strong>
               </div>
-              <p>Serverless 边缘 Worker 无常驻内存。推荐使用 <strong>Cloudflare Web Analytics</strong>（原生免费、零资源开销查看访客地域、IP 与请求次数），或通过 <strong>Cloudflare Logpush</strong> 流式归档至指定日志分析平台，杜绝单点内存泄露。</p>
+              <p>Serverless 边缘 Worker 无常驻内存。建议使用 <strong>Cloudflare Web Analytics</strong>（官方免费、零资源开销查看访客地域、IP 与请求次数），或通过 <strong>Cloudflare Logpush</strong> 流式归档至专属日志分析平台，杜绝在 Worker 内部堆积日志导致内存溢出崩溃。</p>
             </div>
           </div>
         </div>
-      </div>
-    </Dialog>
+      </main>
+    </div>
 
     <div style="flex:1"></div>
     <Footer />
@@ -570,6 +649,7 @@ export default {
     dirCache: new Map(),
 
     // 新增：安全与管理后台状态
+    currentView: "drive", // "drive" 视图或 "admin" 独立控制台视图
     showLogin: false,
     showForgotTips: false,
     loginUsername: "",
@@ -584,7 +664,6 @@ export default {
       lastUpdated: null,
       loading: true
     },
-    showAdminPanel: false,
     activeTab: "storage",
     appsUpdates: {},
     editingApp: null,
@@ -1088,7 +1167,7 @@ export default {
       localStorage.removeItem("flaredrive_token");
       sessionStorage.removeItem("flaredrive_token");
       this.isLoggedIn = false;
-      this.showAdminPanel = false;
+      this.currentView = "drive";
       alert("已成功退出管理员登录！");
       if (this.dirCache) this.dirCache.clear();
       this.fetchFiles(true);
@@ -1096,7 +1175,7 @@ export default {
     },
 
     openAdminPanel() {
-      this.showAdminPanel = true;
+      this.currentView = "admin";
       this.fetchAppUpdates();
       this.fetchStorageStats();
     },
@@ -1207,11 +1286,22 @@ export default {
             : url.searchParams.delete("p");
           window.history.pushState(null, "", url.toString());
         }
+        if (this.currentView !== 'admin') {
+          document.title = this.cwd.replace(/.*\/(?!$)|\//g, "") === "/" 
+              ? "FlareDrive-R2 - 优雅的 Cloudflare R2 网盘文件库"
+              :`${this.cwd.replace(/.*\/(?!$)|\//g, "") || "/" } - 优雅的 Cloudflare R2 网盘文件库`;
+        }
+      },
+      immediate: true,
+    },
+    currentView(val) {
+      if (val === 'admin') {
+        document.title = "FlareDrive 管理控制台 - 运维与版本管理";
+      } else {
         document.title = this.cwd.replace(/.*\/(?!$)|\//g, "") === "/" 
             ? "FlareDrive-R2 - 优雅的 Cloudflare R2 网盘文件库"
             :`${this.cwd.replace(/.*\/(?!$)|\//g, "") || "/" } - 优雅的 Cloudflare R2 网盘文件库`;
-      },
-      immediate: true,
+      }
     }
   },
 
@@ -2086,5 +2176,410 @@ export default {
   margin-top: 15px;
   border-top: 1px solid #E2E8F0;
   padding-top: 12px;
+}
+
+/* ==========================================================================
+   独立全屏系统管理控制台 (Admin Dashboard View) 规范样式
+   ========================================================================== */
+.admin-dashboard-view {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #F8FAFC;
+  color: #0F172A;
+  box-sizing: border-box;
+}
+
+.dash-header {
+  background: #0F172A;
+  color: #FFFFFF;
+  border-bottom: 1px solid #1E293B;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.dash-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dash-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dash-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #F8FAFC;
+  letter-spacing: -0.2px;
+}
+
+.dash-edge-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: rgba(246, 130, 31, 0.15);
+  border: 1px solid rgba(246, 130, 31, 0.4);
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #F6821F;
+}
+
+.dash-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22C55E;
+  box-shadow: 0 0 6px #22C55E;
+}
+
+.dash-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-dash-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #1E293B;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #F1F5F9;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-dash-back:hover {
+  background: #334155;
+  border-color: #475569;
+  color: #FFFFFF;
+}
+
+.btn-dash-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #FCA5A5;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-dash-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #EF4444;
+  color: #FFFFFF;
+}
+
+.dash-main-container {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  box-sizing: border-box;
+}
+
+.dash-nav-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 8px;
+}
+
+.dash-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dash-tab-btn:hover {
+  color: #0F172A;
+  background: #E2E8F0;
+}
+
+.dash-tab-btn.active {
+  background: #0F172A;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-color: #0F172A;
+}
+
+.dash-content-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  margin-bottom: 24px;
+}
+
+.dash-card-header {
+  margin-bottom: 16px;
+}
+
+.dash-card-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.dash-card-subtitle {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.stat-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.metric-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -0.5px;
+}
+
+.metric-hint {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 4px;
+}
+
+.sync-action-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-top: 20px;
+  gap: 20px;
+}
+
+.sync-info-text {
+  flex: 1;
+  font-size: 12px;
+  color: #475569;
+}
+
+.sync-info-text strong {
+  color: #0F172A;
+}
+
+.sync-info-text p {
+  margin: 4px 0 0 0;
+  font-size: 11px;
+  color: #64748B;
+}
+
+.app-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.app-dash-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+}
+
+.app-dash-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.app-dash-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.app-title-area {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-display-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.app-id-tag {
+  font-size: 11px;
+  color: #64748B;
+  font-family: monospace;
+}
+
+.app-version-badge {
+  padding: 2px 8px;
+  background: #0F172A;
+  color: #FFFFFF;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-dash-card-body {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 14px;
+}
+
+.app-meta-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748B;
+  margin-bottom: 8px;
+}
+
+.app-meta-line strong {
+  color: #0F172A;
+}
+
+.app-changelog-preview {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #334155;
+  line-height: 1.4;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+.app-dash-card-footer {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #E2E8F0;
+  padding-top: 12px;
+}
+
+.btn-app-edit {
+  flex: 1;
+  padding: 6px 12px;
+  background: #0F172A;
+  border: 1px solid #0F172A;
+  border-radius: 6px;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.btn-app-edit:hover {
+  background: #1E293B;
+}
+
+.btn-app-del {
+  padding: 6px 12px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  color: #EF4444;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.btn-app-del:hover {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+}
+
+.defense-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .stat-overview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sync-action-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .dash-title {
+    font-size: 14px;
+  }
 }
 </style>
