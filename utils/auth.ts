@@ -47,12 +47,17 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
       if (!secret) return null;
       const payload = await verifyJWT(token, secret);
       if (payload && payload.username) {
-        // 如果 Token 中已签发权限，直接使用
-        if (payload.allowList) {
-          return parseAllowList(payload.allowList);
+        const username = payload.username;
+        if (username.toLowerCase() === "admin") {
+          return ["*"];
         }
 
-        const username = payload.username;
+        // 如果 Token 中已签发权限，直接使用
+        if (payload.allowList) {
+          const list = parseAllowList(payload.allowList);
+          if (list.length > 0) return list;
+        }
+
         let allowConfig: string | undefined = env[username];
         if (!allowConfig) {
           for (const key of Object.keys(env)) {
@@ -65,10 +70,6 @@ async function getAllowListForRequest(context: any): Promise<string[] | null> {
 
         if (allowConfig) {
           return parseAllowList(allowConfig);
-        }
-
-        if (username === "admin") {
-          return ["*"];
         }
       }
     }

@@ -44,10 +44,10 @@ export async function onRequestPost(context: any) {
 
   if (typeof env[`${username}_${password}`] === "string") {
     isAuthenticated = true;
-    userAllowList = env[`${username}_${password}`];
+    userAllowList = env[`${username}_${password}`].trim();
   } else if (typeof env[`${username}:${password}`] === "string") {
     isAuthenticated = true;
-    userAllowList = env[`${username}:${password}`];
+    userAllowList = env[`${username}:${password}`].trim();
   } else if (env.admin) {
     // 兼容 admin=username:password 模式
     try {
@@ -62,6 +62,11 @@ export async function onRequestPost(context: any) {
     } catch (e) {
       // 忽略解析错误
     }
+  }
+
+  // 若通过凭据认证成功且未限定具体子目录，或用户名为 admin，一律赋予全量管理员权限 (*)
+  if (isAuthenticated && (!userAllowList || userAllowList === "" || username.toLowerCase() === "admin")) {
+    userAllowList = "*";
   }
 
   if (!isAuthenticated) {

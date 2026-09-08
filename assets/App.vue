@@ -402,7 +402,7 @@
           </button>
         </li>
         <li>
-          <button style="color: #EF4444" @click="removeFile(focusedItem?.key); showContextMenu = false;">
+          <button style="color: #EF4444" @click="removeFile(focusedItem); showContextMenu = false;">
             <span>删除</span>
           </button>
         </li>
@@ -970,12 +970,96 @@ export default {
       setTimeout(this.processUploadQueue);
     },
 
-    async removeFile(key) {
-      if (!window.confirm(`确定要删除 ${key} 吗？`)) return;
-      await axios.delete(`/api/write/items/${key}`);
-      this.invalidateDirCache(this.cwd);
-      this.fetchFiles(true);
-      this.fetchStorageStats(true);
+    async removeFile(target) {
+      let key = "";
+      let isFolder = false;
+      if (typeof target === "string") {
+        key = target;
+        isFolder = true;
+      } else if (target && target.key) {
+        key = target.key;
+        isFolder = false;
+      } else {
+        return;
+      }
+
+      const displayName = isFolder ? (key.replace(/.*\/(?!$)|\//g, '') + '/') : (key.split('/').pop() || key);
+      if (!window.confirm(`确定要删除 ${displayName} 吗？`)) return;
+
+      try {
+        this.loading = true;
+        if (isFolder) {
+          // 文件夹递归物理删除
+          const folderBase = key.endsWith('/') ? key : key + '/';
+          const allItems = await this.getAllItems(folderBase);
+          for (const item of allItems) {
+            const encoded = item.key.split('/').map(s => encodeURIComponent(s)).join('/');
+            await axios.delete(`/api/write/items/${encoded}`).catch(() => {});
+          }
+          const folderPlaceholder = folderBase.slice(0, -1) + '_$folder$';
+          const encodedHolder = folderPlaceholder.split('/').map(s => encodeURIComponent(s)).join('/');
+          await axios.delete(`/api/write/items/${encodedHolder}`).catch(() => {});
+        } else {
+          // 单文件物理删除 (对各路径段做安全转义)
+          const encoded = key.split('/').map(s => encodeURIComponent(s)).join('/');
+          await axios.delete(`/api/write/items/${encoded}`);
+        }
+
+        // 若删除的是更新安装包 (update/apk/...)，同步从发布清单移除
+        if (key.startsWith("update/apk/") && key.toLowerCase().endsWith(".apk")) {
+          await this.syncRemoveApkFromPublishConfig(key);
+        }
+
+        this.invalidateDirCache(this.cwd);
+        await this.fetchFiles(true);
+        this.fetchStorageStats(true);
+        alert(`已成功删除: ${displayName}`);
+      } catch (error) {
+        console.error("删除失败:", error);
+        const status = error.response?.status;
+        const serverMsg = error.response?.data?.error || error.response?.data || error.message;
+        if (status === 401) {
+          alert(`删除失败 (401 没有操作权限)：请先登录管理员账号，或检查管理员权限配置。`);
+        } else {
+          alert(`删除失败 (${status || '网络异常'}): ${serverMsg}`);
+        }
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async syncRemoveApkFromPublishConfig(apkPath) {
+      try {
+        const token = localStorage.getItem("flaredrive_token") || sessionStorage.getItem("flaredrive_token");
+        if (!token) return;
+        const res = await axios.get(`/api/admin/update/publish?_t=${Date.now()}`).catch(() => null);
+        if (!res || !res.data || !res.data.apps) return;
+        const apps = res.data.apps;
+        const normPath = apkPath.startsWith('/') ? apkPath : '/' + apkPath;
+        const rawPath = '/raw/' + apkPath.replace(/^\/+/, '');
+
+        for (const appId of Object.keys(apps)) {
+          const app = apps[appId];
+          if (!app || !Array.isArray(app.packages)) continue;
+          const match = app.packages.some(p => p.downloadUrl === normPath || p.downloadUrl === rawPath || p.downloadUrl?.includes(apkPath));
+          if (match) {
+            const updatedPackages = app.packages.filter(p => p.downloadUrl !== normPath && p.downloadUrl !== rawPath && !p.downloadUrl?.includes(apkPath));
+            await axios.post("/api/admin/update/publish", {
+              appId: appId,
+              appName: app.appName || "芝麻-TK",
+              latestVersionCode: app.latestVersionCode || 35,
+              latestVersionName: app.latestVersionName || "0.5.0",
+              updateLog: app.updateLog || "",
+              isForceUpdate: !!app.isForceUpdate,
+              apkUploadDir: app.apkUploadDir || `update/apk/${appId}`,
+              packages: updatedPackages
+            }).catch(() => {});
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("同步移除发布清单记录失败:", e);
+      }
     },
 
     async renameFile(key) {
