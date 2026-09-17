@@ -353,6 +353,11 @@
           </button>
         </li>
         <li>
+          <button @click="openShareDialog(); showContextMenu = false;">
+            <span>分享...</span>
+          </button>
+        </li>
+        <li>
           <button @click="openMoveDialog(focusedItem + '_$folder$'); showContextMenu = false;">
             <span>移动到...</span>
           </button>
@@ -387,8 +392,8 @@
           </button>
         </li>
         <li>
-          <button @click="copyLink(`/raw/${focusedItem?.key}`); showContextMenu = false;">
-            <span>复制外链</span>
+          <button @click="openShareDialog(); showContextMenu = false;">
+            <span>分享...</span>
           </button>
         </li>
         <li>
@@ -472,6 +477,9 @@
       @copy-success="onPreviewCopySuccess"
       @copy-failed="onPreviewCopyFailed"
     />
+
+    <!-- 可控分享弹窗：生成 / 管理 / 撤销分享链接 -->
+    <ShareDialog v-model:show="showShareDialog" :share-path="sharePath" />
   </div>
 </template>
 
@@ -493,6 +501,7 @@ import Footer from "./components/Footer.vue";
 import DialogHost from "./components/DialogHost.vue";
 import ToastHost from "./components/ToastHost.vue";
 import PreviewDialog from "./components/PreviewDialog.vue";
+import ShareDialog from "./components/ShareDialog.vue";
 import { encodeKey, FOLDER_PLACEHOLDER } from "./lib/key.js";
 
 export default {
@@ -513,6 +522,8 @@ export default {
     showUploadPopup: false,
     showPreviewDialog: false,
     previewFileKey: "",
+    showShareDialog: false,
+    sharePath: "",
     uploadProgress: null,
     uploadQueue: [],
 
@@ -646,6 +657,14 @@ export default {
     copyLink(link) {
       const url = new URL(link, window.location.origin);
       navigator.clipboard.writeText(url.toString());
+    },
+
+    // 打开分享弹窗：文件夹 focusedItem 为完整路径字符串，文件为 { key } 对象
+    openShareDialog() {
+      const item = this.focusedItem;
+      this.sharePath = typeof item === "string" ? item : (item?.key || "");
+      if (!this.sharePath) return;
+      this.showShareDialog = true;
     },
 
     async copyPaste(source, target) {
@@ -1732,6 +1751,7 @@ export default {
     DialogHost,
     ToastHost,
     PreviewDialog,
+    ShareDialog,
     Menu,
     MimeIcon,
     UploadPopup,

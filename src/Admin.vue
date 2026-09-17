@@ -7,6 +7,7 @@ import AdminLogin from "./admin/components/AdminLogin.vue";
 import StoragePanel from "./admin/components/StoragePanel.vue";
 import UpdatesPanel from "./admin/components/UpdatesPanel.vue";
 import DefensePanel from "./admin/components/DefensePanel.vue";
+import SharePanel from "./admin/components/SharePanel.vue";
 import { useAdminSession } from "./admin/composables/useAdminSession.js";
 import { reactive } from "vue";
 
@@ -82,11 +83,22 @@ onMounted(() => {
             </svg>
             <span>流量防御与审计</span>
           </button>
+          <button class="dash-tab-btn" :class="{ active: activeTab.value === 'share' }" @click="activeTab.value = 'share'">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            <span>分享管理</span>
+          </button>
         </nav>
 
         <StoragePanel v-if="activeTab.value === 'storage'" />
         <UpdatesPanel v-if="activeTab.value === 'updates'" />
         <DefensePanel v-if="activeTab.value === 'defense'" />
+        <SharePanel v-if="activeTab.value === 'share'" />
       </main>
 
       <div style="flex:1"></div>

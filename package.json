@@ -7,19 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "pages:dev": "wrangler pages dev dist --r2 BUCKET",
-    "pages:dev:build": "npm run build && wrangler pages dev dist --r2 BUCKET"
+    "pages:dev": "wrangler pages dev dist --r2 BUCKET --kv KV",
+    "pages:dev:build": "npm run build && wrangler pages dev dist --r2 BUCKET --kv KV"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/willow-god/FlareDrive-R2.git"
+    "url": "git+https://github.com/LiYiCha/FlareDrive-R2.git"
   },
   "author": "longern",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/willow-god/FlareDrive-R2/issues"
+    "url": "https://github.com/LiYiCha/FlareDrive-R2/issues"
   },
-  "homepage": "https://github.com/willow-god/FlareDrive-R2#readme",
+  "homepage": "https://github.com/LiYiCha/FlareDrive-R2#readme",
   "dependencies": {
     "axios": "^0.27.2",
     "vue": "^3.4.38"
