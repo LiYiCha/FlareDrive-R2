@@ -142,8 +142,10 @@ export async function onRequestPut(context) {
   const customMetadata: Record<string, string> = {};
 
   if (request.headers.has("x-amz-copy-source")) {
+    // 前端会 encodeURIComponent(source) 后放进 header（HTTP header 只能是 ASCII）
+    // 这里解码还原出原始 bucket key
     const sourceName = decodeURIComponent(
-      request.headers.get("x-amz-copy-source")
+      request.headers.get("x-amz-copy-source")!
     );
     const source = await bucket.get(sourceName);
     content = source.body;
@@ -166,7 +168,12 @@ export async function onRequestPut(context) {
     }
   } catch (e) {}
 
-  const obj = await bucket.put(path, content, { customMetadata });
+  const obj = await bucket.put(path, content, {
+    customMetadata,
+    httpMetadata: {
+      contentType: request.headers.get("content-type") || "application/octet-stream",
+    },
+  });
   const { key, size, uploaded } = obj;
 
   // 写入增量大小
@@ -235,5 +242,11 @@ export async function onRequestDelete(context) {
     console.error("Incremental delete size update failed: ", err);
   }
 
-  return new Response(null, { status: 204 });
+  // 返回 200 + JSON 体而非 204：部分 dev 代理栈（http-proxy）对 204 空响应
+  // 在 keep-alive 连接上有竞态，浏览器 XHR 收到响应仍可能触发 onerror（假 Network Error）。
+  // 显式 Content-Length 的正常响应可彻底避免该问题。
+  return new Response(JSON.stringify({ ok: true, deleted: path }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
 }

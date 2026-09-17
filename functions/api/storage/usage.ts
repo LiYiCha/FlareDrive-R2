@@ -1,4 +1,5 @@
 import { parseBucketPath } from "@/utils/bucket";
+import { readMetrics, toKvStats } from "@/utils/metrics";
 
 const METADATA_PATH = "_$flaredrive$/metadata/storage_usage.json";
 const DEFAULT_QUOTA = 10 * 1024 * 1024 * 1024; // 10 GB
@@ -56,30 +57,7 @@ export async function onRequestGet(context: any) {
       let kvStats: any = null;
       if (context.env?.KV) {
         try {
-          const kv = context.env.KV;
-          const [classAStr, classBStr, reqsStr, dlStr, trafficStr, lastClientStr, logsStr] = await Promise.all([
-            kv.get("metrics:class_a"),
-            kv.get("metrics:class_b"),
-            kv.get("metrics:requests"),
-            kv.get("metrics:downloads"),
-            kv.get("metrics:traffic_bytes"),
-            kv.get("metrics:last_client"),
-            kv.get("metrics:recent_logs")
-          ]);
-          let recentLogs = [];
-          try {
-            if (logsStr) recentLogs = JSON.parse(logsStr);
-          } catch (e) {}
-          kvStats = {
-            enabled: true,
-            classA: parseInt(classAStr || "0", 10),
-            classB: parseInt(classBStr || "0", 10),
-            totalRequests: parseInt(reqsStr || "0", 10),
-            totalDownloads: parseInt(dlStr || "0", 10),
-            totalTrafficBytes: parseInt(trafficStr || "0", 10),
-            lastClient: lastClientStr ? JSON.parse(lastClientStr) : null,
-            recentLogs
-          };
+          kvStats = toKvStats(await readMetrics(context.env.KV));
         } catch (kvErr) {
           kvStats = { enabled: false };
         }
@@ -119,30 +97,7 @@ export async function onRequestGet(context: any) {
     let kvStats: any = null;
     if (context.env?.KV) {
       try {
-        const kv = context.env.KV;
-        const [classAStr, classBStr, reqsStr, dlStr, trafficStr, lastClientStr, logsStr] = await Promise.all([
-          kv.get("metrics:class_a"),
-          kv.get("metrics:class_b"),
-          kv.get("metrics:requests"),
-          kv.get("metrics:downloads"),
-          kv.get("metrics:traffic_bytes"),
-          kv.get("metrics:last_client"),
-          kv.get("metrics:recent_logs")
-        ]);
-        let recentLogs = [];
-        try {
-          if (logsStr) recentLogs = JSON.parse(logsStr);
-        } catch (e) {}
-        kvStats = {
-          enabled: true,
-          classA: parseInt(classAStr || "0", 10),
-          classB: parseInt(classBStr || "0", 10),
-          totalRequests: parseInt(reqsStr || "0", 10),
-          totalDownloads: parseInt(dlStr || "0", 10),
-          totalTrafficBytes: parseInt(trafficStr || "0", 10),
-          lastClient: lastClientStr ? JSON.parse(lastClientStr) : null,
-          recentLogs
-        };
+        kvStats = toKvStats(await readMetrics(context.env.KV));
       } catch (kvErr) {
         kvStats = { enabled: false };
       }

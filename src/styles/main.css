@@ -1,0 +1,244 @@
+/* ============ 设计 Token ============ */
+:root {
+  --c-bg: #f1f5f9;
+  --c-surface: #ffffff;
+  --c-surface-soft: rgba(255, 255, 255, 0.88);
+  --c-border: #e2e8f0;
+  --c-border-strong: #cbd5e1;
+  --c-text: #0f172a;
+  --c-text-sub: #475569;
+  --c-text-muted: #64748b;
+  --c-text-faint: #94a3b8;
+  --c-primary: #0f172a;
+  --c-primary-hover: #1e293b;
+  --c-accent: #2563eb;
+  --c-accent-soft: #eff6ff;
+  --c-danger: #ef4444;
+  --c-hover: #f1f5f9;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 9999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-pop: 0 10px 25px -5px rgba(15, 23, 42, 0.15),
+    0 8px 10px -6px rgba(15, 23, 42, 0.1);
+
+  --z-progress: 9999;
+  --z-dialog: 9998;
+  --z-menu: 999;
+  --z-fab: 100;
+  --z-bar: 20;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Adjusted",
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Liberation Sans", sans-serif;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --content-max: 1100px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  margin: 0;
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+span,
+h1,
+h2,
+h3,
+h4,
+p,
+li,
+input {
+  font-family: var(--font-sans);
+}
+
+/* 应用挂载前隐藏，避免未编译内容闪现 */
+#app:not([data-v-app]) {
+  display: none;
+}
+
+ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+svg {
+  overflow: unset;
+  flex-shrink: 0;
+}
+
+input[type="search"] {
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-pill);
+  width: 100%;
+  padding: 9px 14px;
+  font-size: 15px;
+  outline: none;
+}
+
+input[type="search"]:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+}
+
+/* 文件列表（主列表与搜索结果共用） */
+.file-list {
+  display: flex;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  flex-direction: column;
+}
+
+.file-list > li {
+  max-width: calc(100% - 20px);
+  margin: 0 10px 2px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s ease-in-out;
+}
+
+.file-list > li:hover {
+  background-color: rgba(15, 23, 42, 0.05);
+}
+
+.file-item {
+  width: 100%;
+  min-height: 56px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s, border-color 0.2s, transform 0.15s ease;
+  user-select: none;
+  cursor: pointer;
+}
+
+.file-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 4px;
+}
+
+.file-info-container {
+  width: 100%;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.file-name,
+.contextmenu-filename {
+  display: block;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.file-attr {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--c-text-muted);
+  font-size: 12px;
+}
+
+.file-attr > span + span {
+  margin-left: 8px;
+}
+
+/* 圆形按钮（顶栏菜单） */
+button.circle {
+  z-index: 1;
+  border-radius: var(--radius-pill);
+  padding: 0 16px;
+  min-height: 40px;
+}
+
+/* 文件/文件夹操作菜单栅格 */
+.contextmenu-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+@media screen and (max-width: 600px) {
+  .contextmenu-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============ 过渡动画 ============ */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+}
+
+.slide-up-enter-active {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+.slide-up-leave-active {
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in;
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}

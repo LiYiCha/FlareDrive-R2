@@ -7,7 +7,7 @@ FlareDrive-R2 是基于 Cloudflare R2 + Workers 构建的在线网盘系统，�
 - 多用户权限管理与目录级访问控制
 - 静态文件托管与直链加速
 - **网盘前台交互**：空白处右键菜单、定向拖拽上传至目标文件夹/面包屑、PC 拖拽移动与树形弹窗移动
-- **独立管理后台**：前后端彻底物理隔离、S3 A/B 类真实操作与流量/访客实时审计流水
+- **独立管理后台**：前后端彻底物理隔离、S3 A/B 类操作与流量/访客实时审计流水
 - **App 版本管理分发**：支持不同 Android App 在 `update/apk/` 下创建独立子目录、拖拽 APK 自动提取包信息与 MD5，对接客户端更新检查
 
 > 📌 本项目修改自 [Cloudflare-R2-oss](https://github.com/ljxi/Cloudflare-R2-oss)，实现了更加美观的前端页面，本人并不擅长`CF Worker`开发，所以如果有功能方面的需求，请在上游仓库提出。
@@ -44,7 +44,16 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 1. Fork 本项目仓库到你的 GitHub
 2. 打开 Cloudflare Pages，新建一个站点
 3. 点击「连接到 Git」并选择你的仓库
-4. 保持默认的构建设置即可，第一次构建不会显示内容，为正常现象
+4. 在构建设置中填写（前端已改为 Vite 构建，**必须配置，否则页面空白**）：
+
+   | 设置项 | 填写值 |
+   | --- | --- |
+   | Framework preset | None（或 Vite） |
+   | Build command | `npm run build` |
+   | Build output directory | `dist` |
+   | Node.js version | 18 或更高 |
+
+5. Functions（`functions/` 目录）会被 Pages 自动识别部署，无需额外配置；保存后等待构建完成即可访问
 
 ### 3. 配置环境变量 (Environment Variables)
 
@@ -82,7 +91,7 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 3. 下拉选择您的 R2 存储桶并保存。
 
 #### ② 绑定 KV 数据库命名空间 (强烈推荐)
-系统内置了基于 Cloudflare KV 的**防暴力破解安全风控**与**真实 S3 操作指标统计**：
+系统内置了基于 Cloudflare KV 的**防暴力破解安全风控**与** S3 操作指标统计**：
 1. 在 Cloudflare 控制台进入 **Storage & Databases → KV**，新建一个命名空间（如 `flaredrive-kv`）；
 2. 回到 Pages 项目设置中的 **Settings → Functions → KV namespace bindings**；
 3. 点击「Add binding」，变量名称统一填写为：
@@ -91,7 +100,7 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
    ```
 4. 下拉选择刚才创建的 KV 命名空间。
    - **安全防刷**：登录接口自动开启 IP 级频率限制（密码连续输错 5 次自动封禁该 IP 15 分钟）。
-   - **数据看板**：后台自动通过 `_middleware` 异步采集真实的 S3 A 类操作数、S3 B 类操作数、API 请求总数、真实传输流量及最新访客 IP/地域流水（杜绝虚构数据，零延迟开销）。
+   - **数据看板**：后台自动通过 `_middleware` 异步采集的 S3 A 类操作数、S3 B 类操作数、API 请求总数、传输流量及最新访客 IP/地域流水（零延迟开销）。
    - *（注：若未绑定 KV，系统将自动跳过实时计数与防爆破，不影响网盘基本文件上传下载）。*
 
 ### 5. 管理后台访问方式 (隐蔽防探查)
@@ -102,12 +111,13 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 3. **状态徽标**：点击页面最下方页脚的 `Cloudflare Edge Connected` 状态徽标亦可快速激活登录/进入控制台。
 4. **后台核心功能**：
    - **存储用量与全桶校准**：显示存储容量与文件统计，支持一键发起全量重新校准。
-   - **真实指标与审计流水**：实时采集 API 请求数、S3 A/B 类操作数、真实传输流量，并以表格展示最近 30 条实时访客 IP、归属地域、请求路径、传输字节与状态码。
+   - **指标与审计流水**：实时采集 API 请求数、S3 A/B 类操作数、传输流量，并以表格展示最近 30 条实时访客 IP、归属地域、请求路径、传输字节与状态码。
    - **防恶意刷量配置**：提供 Cloudflare Edge Cache 与 WAF 规则安全建议。
 
 ### 6. 重新部署项目
 
-完成所有设置后，回到 Pages 控制台，点击「Deployments」页面右上角的「Trigger Redeploy」以重新部署服务。
+- 之后每次向仓库 `git push`，Cloudflare Pages 都会自动执行 `npm run build` 并发布 `dist`，无需手动操作
+- 仅当修改了**环境变量或 R2/KV 绑定**后，才需要到「Deployments」页面点击「Trigger Redeploy」使新配置生效
 
 ### 7. Android App 版本更新与 APK 目录管理
 
@@ -132,42 +142,39 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 
 ### ⚙️ 自定义配置
 
-#### 前端样式修改
+#### 本地开发
 
-由于 Wrangler 部署无法使用传统环境变量注入，我偷懒了，不想写环境变量，但是仍然可以简单的进行修改，请直接修改以下文件：
+```bash
+npm install          # 安装依赖
 
-1. **背景图片**  
-   修改文件：`assets/App.vue`  
-   
-   ```vue
-   // 约第 213 行
-   export default {
-     data: () => ({
-       ...
-       backgroundImageUrl: "/assets/bg-light.webp"
-     }),
-   }
-   ```
-   
-2. **页脚链接**  
-   修改文件：`assets/Footer.vue`  
-   
-   ```html
-   // 约第四十行
-   <script>
-   export default {
-     name: "Footer",
-     data() {
-       return {
-         homeUrl: "https://www.liushen.fun/",
-         blogUrl: "https://blog.liushen.fun/",
-         githubUrl: "https://github.com/willow-god",
-         emailUrl: "mailto:01@liushen.fun"
-       };
-     }
-   };
-   </script>
-   ```
+# 方式一：纯前端开发（热更新，API 请求需自行代理或用方式二）
+npm run dev
+
+# 方式二：完整本地环境（构建后用 wrangler 模拟 Pages + Functions + R2）
+npm run build
+npm run pages:dev    # 等价于 wrangler pages dev dist --r2 BUCKET
+```
+
+本地环境变量（R2 密钥等）写入项目根目录的 `.dev.vars`，格式与 Pages 环境变量相同。
+
+#### 前端工程结构（Vite + Vue 3）
+
+```
+├─ index.html / admin.html   # 双页面入口
+├─ src/
+│  ├─ main.js / admin.js     # 入口启动模块
+│  ├─ App.vue / Admin.vue     # 主站 / 管理后台页面
+│  ├─ components/            # Dialog、Menu、MimeIcon、UploadPopup、Footer
+│  ├─ lib/                   # request.js（axios 实例与 JWT 拦截）、upload.js
+│  └─ styles/main.css        # 全局样式与设计 token（颜色/圆角/间距/响应式变量）
+├─ public/                   # 原样拷贝的静态资源（favicon、_headers、manifest）
+├─ functions/                # Cloudflare Pages Functions（后端 API，自动部署）
+└─ vite.config.js            # 构建配置（vendor 分包、压缩、哈希命名）
+```
+
+修改样式后重新执行 `npm run build` 即可在 `dist/` 看到产物；响应式断点统一定义在各组件的 `@media (max-width: 640px/900px)` 中，全站颜色、圆角、间距请优先使用 [main.css](src/styles/main.css) 中的 CSS 变量，不要硬编码。
+
+> 提示：背景壁纸功能已移除，主站默认使用纯色背景；如需恢复品牌图，建议放到 `public/assets/` 并在 `src/styles/main.css` 的 `.main` 上以 `background-image` 引入。
 
 #### 权限配置技巧
 

@@ -1,4 +1,10 @@
 node_modules/
+dist/
 *.local
-.idea
+**/.idea
+**/.gradle
 updater/build
+backup/
+.wrangler/
+**/.kotlin
+**/build

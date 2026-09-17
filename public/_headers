@@ -1,0 +1,32 @@
+# Vite 构建产物（带内容哈希）：永久强缓存
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+# public 静态图片与清单：1 天强缓存 + 7 天后台刷新
+/assets/*.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/*.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/*.webp
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/*.ico
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/manifest.json
+  Cache-Control: public, max-age=86400
+
+/favicon.ico
+  Cache-Control: public, max-age=604800
+
+# HTML 入口：始终校验，保证部署后立即生效
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/admin.html
+  Cache-Control: public, max-age=0, must-revalidate
+/404.html
+  Cache-Control: public, max-age=0, must-revalidate

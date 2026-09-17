@@ -125,7 +125,6 @@ dependencies {
 在 Application 或首个 Activity 中配置更新源并构建单例 `Updater`：
 
 ```kotlin
-import com.updater.Updater
 
 // 初始化更新模块
 val updater = Updater.Companion.Builder(this)

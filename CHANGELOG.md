@@ -4,6 +4,41 @@
 
 ---
 
+## [v0.2.0] - 2026-09-17 11:56 (GMT+8)
+
+本次更新为跨技术栈架构级重构（前端工程化、Android 更新库重写、后端指标合并），并针对文件操作可靠性、权限提示体验与存储统计准确性做了一系列定向修复。
+
+### 🚀 架构重构 (Architecture)
+- **前端迁移 Vite 构建链**：废弃浏览器内 `vue3-sfc-loader` 运行时编译，改为 Vite + ESM 双入口（`index.html` / `admin.html`），vendor 手动分包；构建产物输出至 `dist/`，`npm run pages:dev:build` 一条命令即可提供完整前后端。
+- **Android 更新库全面重写 (`:updater`)**：由 OkHttp + Serializable + SharedPreferences 旧实现重构为 **Compose + Coroutines/Flow + Room + DataStore + Retrofit** 现代架构；工程拆分为 `:updater` (library) 与 `:demo` (宿主演示)，依赖版本集中管理于 `gradle/libs.versions.toml`；更新源采用 Strategy 模式（Cloudflare R2 / GitHub Releases）可扩展。
+- **指标 KV 存储合并**：7 个独立 KV 键合并为单键 `metrics:summary`，读取时自动回退旧键格式，平滑兼容历史数据。
+- **`/raw/` 下载链路增强**：支持 URL `?token=` 二次鉴权；公开资源在非本地环境 302 直跳 R2 公共域以命中 CDN 缓存；上游 5xx 异常时回退 R2 绑定直读；修正对象 key 解码不一致导致的 404。
+
+### ✨ 新增功能 (Features)
+- **Toast 轻提示系统**：移动/删除/复制等操作结果改用顶部 toast 反馈，模态弹窗保留给需要确认或展示详细错误的场景。
+- **文件预览弹窗**：点击文件按类型（图片/视频/音频/PDF/文本）在线预览，支持一键复制下载直链。
+- **Promise 化全局弹窗**：`alertDialog / confirmDialog / promptDialog` 全面替代浏览器原生 `alert/confirm` 样式。
+- **后台登录回跳**：主站遇未授权跳转登录页，登录成功后自动回跳来源页。
+
+### 🐞 缺陷修复 (Bug Fixes)
+- **文件夹删除不生效（严重）**：删除文件夹时占位符 key 拼接少了一个斜杠（`test/1_$folder$`，正确为 `test/1/_$folder$`），R2 删除幂等返回 2xx 造成"删除成功"假象，真占位符残留导致文件夹删不掉；已修正拼接逻辑。
+- **移动到当前目录导致文件永久丢失（严重）**：原实现先复制覆盖自身再删除自身；已增加同路径移动与文件夹自我嵌套双重拦截。
+- **中文路径移动崩溃**：文件 key 经 `encodeURIComponent` 编码后写入 `x-amz-copy-source` 请求头（HTTP header 仅限 ASCII），后端 `decodeURIComponent` 还原，修复 `setRequestHeader non ISO-8859-1` 崩溃。
+- **删除接口代理竞态**：DELETE 由 `204 No Content` 改为 `200 + JSON`，规避部分代理栈对空 body keep-alive 响应的 `Network Error` 误报。
+- **无权限提示修复**：统一 401/403 处理只弹"无权限 + 后端具体原因"对话框，不出现任何登录引导文案或跳转；顺带修复 `confirmDialog` 返回值误用 `window.confirm`（恒为真）导致未授权时强制跳转 `/login` 的问题。
+- **未登录浏览弹窗打扰**：文件列表与搜索等被动请求的 401 改为静默同步登录状态，不再弹窗；写操作被拦截仍会明确提示。
+- **APK 发布表单残留计数**：上传被权限拦截后表单仍残留文件大小/MD5/自动名称；现上传失败按快照还原全部字段，MD5 异步回填加序号防竞态；包显示名称/唯一标识改为跟随新上传文件自动刷新（手动编辑过的值不被覆盖）。
+- **存储统计刷新拿到缓存旧值**：主站强制刷新统计时补加 `?_t=` 缓存穿透（usage 接口带 60 秒 HTTP 缓存），删除文件后计数立即反映真实值。
+
+### ⚡ 统计与可观测 (Metrics & Ops)
+- **A/B 类操作指标只统计成功请求**：状态码 ≥ 400（如被 401 拦截的写入）不再计入"S3 写入/变更已执行"次数与下载次数；总请求数与最近访问流水仍如实记录失败尝试。
+- **全桶校准兜底**：S3 透传端点（`/api/write/s3/`）直连真实 R2 API，不维护增量统计；经 S3 面板或外部工具操作后，可执行"全桶校准"重建计数基线。
+
+### 💻 开发体验 (DevTools)
+- **Chrome DevTools 探测兼容**：中间件对 `/.well-known/appspecific/com.chrome.devtools.json` 返回 200 空对象，消除本地开发日志中的 404 噪音（该请求由打开 DevTools 的 Chrome 自动发起）。
+
+---
+
 ## [v0.1.1] - 2026-06-25 15:28 (GMT+8)
 
 本次更新针对安全性审计（Code Review）中发现的数个高危及重大隐患进行了定向加固，提升了前端 Token 存储的防泄漏能力，修复了 S3 写入代理的兼容性，并提供了完整的本地零配置开发测试套件。
