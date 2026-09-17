@@ -255,7 +255,8 @@ export default {
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(2px);
-  z-index: 99999;
+  /* 须低于 DialogHost(10000) 与 Toast(10001)：撤销确认框、复制 toast 才能盖在分享弹窗上 */
+  z-index: 9998;
   display: flex;
   align-items: center;
   justify-content: center;
