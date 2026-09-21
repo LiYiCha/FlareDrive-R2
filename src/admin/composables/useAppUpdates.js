@@ -1,6 +1,8 @@
 import { reactive, toRefs } from "vue";
 import http from "../../lib/request.js";
 import { alertDialog, confirmDialog } from "../../lib/dialog.js";
+import { parsePackageMeta } from "../lib/apkParser.js";
+import { computeFileMd5 } from "../lib/hash.js";
 
 const state = reactive({
   appsUpdates: {},
@@ -63,14 +65,16 @@ function createAppUpdate() {
   state.editingApp = {
     appId: "",
     appName: "",
-    latestVersionCode: 100,
-    latestVersionName: "1.0.0",
+    // 版本号改为选填：上传 APK/模块后自动提取填充，也可手动覆盖
+    latestVersionCode: "",
+    latestVersionName: "",
     updateLog: "",
     isForceUpdate: false,
     cdnCacheEnabled: false,
     cdnCacheTtl: 0,
     apkUploadDir: "update/apk",
     _dirCustomized: false,
+    _verAuto: false,
     packages: [],
   };
   state.isNewApp = true;
@@ -207,6 +211,33 @@ function onApkFileSelected(ev, pkg) {
   }
 }
 
+// 将 APK/模块包内提取的元数据回填到表单（版本号免手填的核心逻辑）
+function applyPackageMeta(pkg, meta) {
+  if (meta.versionCode !== null && meta.versionCode !== undefined) {
+    pkg.versionCode = meta.versionCode;
+    pkg._verAuto = true;
+  }
+  if (meta.versionName) {
+    pkg.versionName = meta.versionName;
+  }
+  // manifest 内的真实包名比文件名更准确，仅在用户未手动编辑过 packageId 时覆盖
+  if (meta.packageName && (!pkg.packageId || pkg._idAuto)) {
+    pkg.packageId = meta.packageName;
+    pkg._idAuto = true;
+  }
+  // 应用级"最新版本"同步：为空或此前由上传自动填充时才覆盖，手动编辑过则尊重手填值
+  const app = state.editingApp;
+  if (app && meta.versionCode !== null && meta.versionCode !== undefined) {
+    if (!app.latestVersionCode || app._verAuto) {
+      app.latestVersionCode = meta.versionCode;
+      if (meta.versionName && (!app.latestVersionName || app._verAuto)) {
+        app.latestVersionName = meta.versionName;
+      }
+      app._verAuto = true;
+    }
+  }
+}
+
 async function uploadApkForPackage(file, pkg) {
   if (!file) return;
   if (!file.name.toLowerCase().endsWith(".apk")) {
@@ -224,8 +255,11 @@ async function uploadApkForPackage(file, pkg) {
     apkMd5: pkg.apkMd5,
     packageId: pkg.packageId,
     packageName: pkg.packageName,
+    versionCode: pkg.versionCode,
+    versionName: pkg.versionName,
     _idAuto: pkg._idAuto,
     _nameAuto: pkg._nameAuto,
+    _verAuto: pkg._verAuto,
   };
   const seq = (pkg._uploadSeq = (pkg._uploadSeq || 0) + 1);
 
@@ -247,12 +281,22 @@ async function uploadApkForPackage(file, pkg) {
     pkg.packageName = baseName;
     pkg._nameAuto = true;
   }
-  pkg.versionCode = state.editingApp.latestVersionCode;
-  pkg.versionName = state.editingApp.latestVersionName;
+  // 版本号不再从应用级配置复制：异步从包内 AndroidManifest.xml / module.prop 自动提取
 
   computeFileMd5(file).then((md5) => {
     // 仅当仍是本次上传时才回填，避免失败还原后未完成的 MD5 计算又把值写回
     if (pkg._uploadSeq === seq && md5) pkg.apkMd5 = md5;
+  });
+
+  parsePackageMeta(file).then((meta) => {
+    if (pkg._uploadSeq !== seq) return;
+    if (meta) {
+      applyPackageMeta(pkg, meta);
+    } else if (state.editingApp) {
+      // 解析失败（非包文件/损坏压缩包等）回退：沿用应用级手填版本号
+      if (state.editingApp.latestVersionCode) pkg.versionCode = state.editingApp.latestVersionCode;
+      if (state.editingApp.latestVersionName) pkg.versionName = state.editingApp.latestVersionName;
+    }
   });
 
   const uploadDir = getPackageUploadDir(pkg);
@@ -274,36 +318,23 @@ async function uploadApkForPackage(file, pkg) {
   } catch (err) {
     pkg._uploading = false;
     pkg._uploadFileName = "";
-    pkg._uploadSeq++; // 使本次未完成的 MD5 计算失效
+    pkg._uploadSeq++; // 使本次未完成的 MD5/版本号回填失效
     pkg.apkSize = prev.apkSize;
     pkg.apkMd5 = prev.apkMd5;
     pkg.packageId = prev.packageId;
     pkg.packageName = prev.packageName;
+    pkg.versionCode = prev.versionCode;
+    pkg.versionName = prev.versionName;
     pkg._idAuto = prev._idAuto;
     pkg._nameAuto = prev._nameAuto;
+    pkg._verAuto = prev._verAuto;
     await alertDialog("APK 安装包上传失败：" + (err.response?.data?.error || err.message));
   }
 }
 
-async function computeFileMd5(file) {
-  try {
-    const slice = file.size > 20 * 1024 * 1024 ? file.slice(0, 10 * 1024 * 1024) : file;
-    const buffer = await slice.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
-  } catch (e) {
-    return "";
-  }
-}
-
 async function saveAppUpdate() {
-  if (
-    !state.editingApp.appId ||
-    !state.editingApp.appName ||
-    !state.editingApp.latestVersionCode ||
-    !state.editingApp.latestVersionName
-  ) {
+  // 版本号已支持从上传的 APK/模块自动提取，发布时缺失会由后端从 packages 派生，故只强制应用标识
+  if (!state.editingApp.appId || !state.editingApp.appName) {
     await alertDialog("请填写所有必填字段 (*)");
     return;
   }

@@ -70,18 +70,41 @@ export async function onRequestPost(context: any) {
       });
     }
 
-    if (!appId || !appName || !latestVersionCode || !latestVersionName) {
-      return new Response(JSON.stringify({ error: "必填字段 (appId, appName, latestVersionCode, latestVersionName) 缺失" }), {
+    if (!appId || !appName) {
+      return new Response(JSON.stringify({ error: "必填字段 (appId, appName) 缺失" }), {
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
     }
 
+    // 版本号支持自动提取：缺失时从 packages 中派生（取最大 versionCode 及其对应 versionName）
+    let finalVersionCode: any = latestVersionCode;
+    let finalVersionName = latestVersionName;
+    if (!finalVersionCode || !finalVersionName) {
+      let maxCode: number | null = null;
+      let maxName = "";
+      for (const p of packages || []) {
+        const code = parseInt(p?.versionCode, 10);
+        if (Number.isFinite(code) && (maxCode === null || code > maxCode)) {
+          maxCode = code;
+          maxName = p?.versionName ? String(p.versionName) : "";
+        }
+      }
+      if (maxCode === null) {
+        return new Response(JSON.stringify({ error: "版本号缺失且无法从 packages 派生，请上传 APK/模块自动提取或手动填写" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (!finalVersionCode) finalVersionCode = maxCode;
+      if (!finalVersionName) finalVersionName = maxName;
+    }
+
     // 3. 写入/更新该 App 的配置
     updateConfig.apps[appId] = {
       appName,
-      latestVersionCode: parseInt(latestVersionCode, 10),
-      latestVersionName,
+      latestVersionCode: parseInt(String(finalVersionCode), 10),
+      latestVersionName: finalVersionName,
       updateLog: updateLog || "",
       isForceUpdate: !!isForceUpdate,
       apkUploadDir: apkUploadDir ? apkUploadDir.trim() : "",

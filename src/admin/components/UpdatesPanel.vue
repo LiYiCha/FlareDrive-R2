@@ -83,12 +83,12 @@ const {
       </div>
       <div class="form-group-row">
         <div class="form-group">
-          <label>最新 Version Code *</label>
-          <input type="number" v-model="editingApp.latestVersionCode" placeholder="例如 200" />
+          <label>最新 Version Code（选填，上传 APK/模块后自动提取）</label>
+          <input type="number" v-model="editingApp.latestVersionCode" @input="editingApp._verAuto = false" placeholder="自动提取，例如 200" />
         </div>
         <div class="form-group">
-          <label>最新 Version Name *</label>
-          <input type="text" v-model="editingApp.latestVersionName" placeholder="例如 2.0.0" />
+          <label>最新 Version Name（选填，自动提取）</label>
+          <input type="text" v-model="editingApp.latestVersionName" @input="editingApp._verAuto = false" placeholder="自动提取，例如 2.0.0" />
         </div>
       </div>
       <div class="form-group force-update-wrap">
