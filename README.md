@@ -46,12 +46,11 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 3. 点击「连接到 Git」并选择你的仓库
 4. 在构建设置中填写（前端已改为 Vite 构建，**必须配置，否则页面空白**）：
 
-   | 设置项 | 填写值 |
-   | --- | --- |
-   | Framework preset | None（或 Vite） |
-   | Build command | `npm run build` |
-   | Build output directory | `dist` |
-   | Node.js version | 18 或更高 |
+   | 设置项 | 填写值 | 说明 |
+   | --- | --- | --- |
+   | Framework preset | None（或 Vue） | 预设仅作为模板，核心认准下方的命令和输出目录 |
+   | Build command | `npm run build` | 构建打包命令 |
+   | Build output directory | `dist` | 静态资源输出目录（**必须是 dist**） |
 
 5. Functions（`functions/` 目录）会被 Pages 自动识别部署，无需额外配置；保存后等待构建完成即可访问
 
@@ -63,6 +62,7 @@ https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev
 
 | 变量名 | 示例值 | 是否必要 | 说明 |
 | --- | --- | --- | --- |
+| `NODE_VERSION` | `18`（或 `20`） | ✅ 必填 | Node.js 版本（Vite 5 构建强制要求 >= 18，否则 Pages 构建会失败） |
 | `PUBURL` | `https://pub-kdsjfhlasnwiuweia4387rfho85tnof4.r2.dev` | ✅ 必填 | R2 公共存储桶直链地址（支持 r2.dev 或绑定自定义域名） |
 | `admin_123456` | `*` | ✅ 必填 | 管理员账号密码与权限，格式统一为 `用户名_密码`，值为 `*`（全局权限） |
 | `JWT_SECRET` | `your_random_secret_token_12345` | ✅ 必填 | 登录 Token 签名密钥（用于生成及校验管理员加密 JWT，切勿泄露） |
